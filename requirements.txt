@@ -6,6 +6,6 @@ Pillow
 python-multipart
 fastapi[standard]
 opencv-python-headless
-torch
+torch<2.6.0
 torchvision
 pytorch-lightning
