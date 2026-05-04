@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo HMER</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script id="MathJax-script" async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  </script>
+  
+</head>
+<body class="bg-white p-10">
+  <div class="max-w-[1500px] min-h-[700px] mx-auto border p-10 flex space-x-10">
+
+    <!-- Image Upload Section with Tabs -->
+    <div class="flex-1 border p-0 flex flex-col items-stretch justify-center">
+      <!-- Tabs fixed just below the top border line -->
+        <ul class="flex border-b justify-center">
+          <li class="-mb-px mr-1">
+            <button id="tab-upload" class="bg-white inline-block border-l border-t border-r rounded-t py-2 px-4 text-blue-700 font-semibold" onclick="showTab('upload')">Upload Image</button>
+          </li>
+          <li class="mr-1">
+            <button id="tab-draw" class="bg-white inline-block py-2 px-4 text-blue-700 font-semibold" onclick="showTab('draw')">Write Formula</button>
+          </li>
+        </ul>
+      <!-- Scrollable content below tabs -->
+      <div class="w-full flex-1">
+        <div id="upload-section" class="w-full flex flex-col items-center">
+          <input type="file" id="imageInput" accept="image/*" class="mb-4">
+          <img id="previewImage" src="" alt="hmer Image" class="max-w-full max-h-96 mx-auto hidden"/>
+          <div id="imageError" class="text-red-600 mt-2 hidden">Image error</div>
+        </div>
+
+        <div id="draw-section" class="w-full flex flex-col items-center hidden">
+          <canvas id="drawCanvas" width="1000" height="500" class="mb-4 bg-white border rounded cursor-crosshair"></canvas>
+          <div class="flex gap-2 mb-4">
+            <button id="clearCanvasBtn" class="px-3 py-1 bg-gray-600 text-white rounded">Delete</button>
+            <button id="sendCanvasBtn" class="px-4 py-2 bg-blue-600 text-white rounded">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prediction Output Section -->
+    <div class="w-1/3 border p-4 space-y-4">
+      <div>
+        <p class="font-semibold">Predicted Sequence:</p>
+        <textarea id="seqResult" class="w-full p-2 border bg-gray-100 text-sm" rows="4" readonly></textarea>
+      </div>
+
+      <div>
+        <p class="font-semibold mt-4">Translated LaTeX:</p>
+        <textarea id="latexSource" class="w-full p-2 border bg-gray-100 text-sm" rows="5" readonly></textarea>
+      </div>
+
+      <div>
+        <p class="font-semibold mt-4">Rendered Math:</p>
+        <div id="latexRender" class="p-2 border mt-1 bg-gray-100 text-sm min-h-[6rem]"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/script.js"></script>
+</body>
+</html>

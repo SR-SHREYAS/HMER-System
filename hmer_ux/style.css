@@ -1,0 +1,146 @@
+/* style.css */
+body {
+  font-family: sans-serif;
+  background: #F2F2F2;
+  color: #000000;
+}
+
+/* Card and main container */
+.max-w-6xl {
+  background: #F2F2F2 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 4px 24px 0 rgba(182, 176, 159, 0.10), 0 1.5px 4px 0 rgba(0,0,0,0.04);
+  border: 2px solid #B6B09F !important;
+}
+
+.flex-1, .w-1\/3 {
+  background: #EAE4D5 !important;
+  border-color: #B6B09F !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 12px 0 rgba(182, 176, 159, 0.08);
+}
+
+/* Tabs */
+#tab-upload, #tab-draw {
+  background: #EAE4D5 !important;
+  color: #000000 !important;
+  border-color: #B6B09F !important;
+  border-radius: 12px 12px 0 0 !important;
+  font-weight: 600;
+  font-size: 1.08rem;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px 0 rgba(182, 176, 159, 0.08);
+  margin-left: 8px;
+  margin-right: 8px;
+  min-width: 150px;
+}
+#tab-upload.font-semibold, #tab-draw.font-semibold {
+  background: #B6B09F !important;
+  color: #000000 !important;
+  box-shadow: 0 4px 12px 0 rgba(182, 176, 159, 0.18);
+}
+#tab-upload:hover, #tab-draw:hover {
+  background: #F2F2F2 !important;
+  color: #B6B09F !important;
+}
+
+/* Tab border line */
+.flex.border-b {
+  border-color: #B6B09F !important;
+}
+
+/* Upload/Draw section background */
+#upload-section, #draw-section {
+  background: #EAE4D5 !important;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px 0 rgba(182, 176, 159, 0.10);
+  padding-top: 18px;
+  padding-bottom: 18px;
+  /* border: 1px solid #000000 !important; */
+}
+
+#upload-section input[type="file"] {
+  background: #F2F2F2;
+  border: 1.5px solid #B6B09F;
+  color: #000000;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+#upload-section img {
+  border-radius: 10px;
+  border: 2px solid #B6B09F;
+  box-shadow: 0 2px 8px 0 rgba(182, 176, 159, 0.10);
+}
+#imageError {
+  color: #d32f2f !important;
+  font-weight: 500;
+  background: #fff0f0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-top: 8px;
+}
+
+/* Canvas border and background */
+#drawCanvas {
+  border-color: #B6B09F !important;
+  background: #000000 !important;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.10);
+}
+
+/* Buttons */
+button {
+  background: #B6B09F !important;
+  color: #000000 !important;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 8px 18px;
+  font-size: 1rem;
+  transition: background 0.2s, color 0.2s;
+  box-shadow: 0 1.5px 4px 0 rgba(0,0,0,0.04);
+}
+button:hover {
+  background: #000000 !important;
+  color: #EAE4D5 !important;
+}
+button:active {
+  background: #EAE4D5 !important;
+  color: #000000 !important;
+}
+button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #B6B09F;
+}
+
+/* Output section */
+#seqResult, #latexResult {
+  background: #F2F2F2 !important;
+  color: #000000 !important;
+  border-color: #B6B09F !important;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  padding: 10px 14px;
+  box-shadow: 0 1.5px 4px 0 rgba(0,0,0,0.04);
+}
+
+/* Headings */
+p.font-semibold {
+  color: #000000;
+  font-size: 1.12rem;
+  letter-spacing: 0.2px;
+  font-weight: 700;
+}
+
+/* Responsive tweaks */
+@media (max-width: 900px) {
+  .max-w-6xl {
+    padding: 2vw !important;
+  }
+  .w-1\/3 {
+    min-width: 100%;
+    margin-top: 24px;
+  }
+}

@@ -1,0 +1,11 @@
+einops
+sconf
+typer
+wandb
+Pillow
+python-multipart
+fastapi[standard]
+opencv-python-headless
+torch
+torchvision
+pytorch-lightning
