@@ -1,3 +1,11 @@
+---
+title: HMER System
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # HMER System: Handwritten Mathematical Expression Recognition
 
 ## Overview :
