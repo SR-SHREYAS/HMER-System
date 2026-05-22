@@ -8,6 +8,8 @@ pinned: false
 
 # HMER System: Handwritten Mathematical Expression Recognition
 
+🚀 **Live Demo:** [Test the application on Hugging Face Spaces!](https://huggingface.co/spaces/SR-SHREYAS/HMER-System)
+
 ## Overview :
 This is a handwritten mathematical expression recognizer that takes images of math written by hand and converts them into LaTeX code. Think of it like OCR (optical character recognition), but specifically trained to understand mathematical notation like fractions, integrals, Greek letters, and complex expressions.
 
@@ -508,6 +510,10 @@ HMER-System/
 ---
 
 ## How to Use the Demo
+
+🌐 **Access the live web app:** [HMER System on Hugging Face](https://huggingface.co/spaces/SR-SHREYAS/HMER-System)
+
+*(Alternatively, you can run it locally by following the Quick Start guide).*
 
 1. **Canvas Drawing:** Click on the canvas and draw your math expression
 2. **Image Upload:** Upload a photo or image file of handwritten math
