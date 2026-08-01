@@ -19,21 +19,21 @@
       <!-- Tabs fixed just below the top border line -->
         <ul class="flex border-b justify-center">
           <li class="-mb-px mr-1">
-            <button id="tab-upload" class="bg-white inline-block border-l border-t border-r rounded-t py-2 px-4 text-blue-700 font-semibold" onclick="showTab('upload')">Upload Image</button>
+            <button id="tab-upload" class="bg-white inline-block py-2 px-4 text-blue-700 font-semibold" onclick="showTab('upload')">Upload Image</button>
           </li>
           <li class="mr-1">
-            <button id="tab-draw" class="bg-white inline-block py-2 px-4 text-blue-700 font-semibold" onclick="showTab('draw')">Write Formula</button>
+            <button id="tab-draw" class="bg-white inline-block border-l border-t border-r rounded-t py-2 px-4 text-blue-700 font-semibold" onclick="showTab('draw')">Write Formula</button>
           </li>
         </ul>
       <!-- Scrollable content below tabs -->
       <div class="w-full flex-1">
-        <div id="upload-section" class="w-full flex flex-col items-center">
+        <div id="upload-section" class="w-full flex flex-col items-center hidden">
           <input type="file" id="imageInput" accept="image/*" class="mb-4">
           <img id="previewImage" src="" alt="hmer Image" class="max-w-full max-h-96 mx-auto hidden"/>
           <div id="imageError" class="text-red-600 mt-2 hidden">Image error</div>
         </div>
 
-        <div id="draw-section" class="w-full flex flex-col items-center hidden">
+        <div id="draw-section" class="w-full flex flex-col items-center">
           <canvas id="drawCanvas" width="1000" height="500" class="mb-4 bg-white border rounded cursor-crosshair"></canvas>
           <div class="flex gap-2 mb-4">
             <button id="clearCanvasBtn" class="px-3 py-1 bg-gray-600 text-white rounded">Delete</button>
