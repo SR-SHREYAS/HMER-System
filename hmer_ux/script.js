@@ -119,6 +119,8 @@ document.getElementById('clearCanvasBtn').addEventListener('click', () => {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 });
 
+showTab('draw');
+
 document.getElementById('sendCanvasBtn').addEventListener('click', () => {
   const processedCanvas = preprocessCanvasForModel(canvas);
   if (!processedCanvas) {
