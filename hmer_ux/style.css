@@ -144,3 +144,17 @@ p.font-semibold {
     margin-top: 24px;
   }
 }
+
+/* Progressive reveal animation -------------------------------- */
+.section-hidden {
+  display: none;
+}
+.solution-reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.solution-visible {
+  opacity: 1;
+  transform: translateY(0);
+}

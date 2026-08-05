@@ -59,9 +59,25 @@
         <p class="font-semibold mt-4">Rendered Math:</p>
         <div id="latexRender" class="p-2 border mt-1 bg-gray-100 text-sm min-h-[6rem]"></div>
       </div>
+
+      <div>
+        <p class="font-semibold mt-4">Recognized Task:</p>
+        <div id="taskResult" class="p-2 border bg-gray-100 text-sm"></div>
+      </div>
+
+      <div id="answerSection" class="section-hidden">
+        <p class="font-semibold mt-4">Final Answer:</p>
+        <div id="answerResult" class="p-2 border bg-gray-100 text-sm min-h-[2rem]"></div>
+      </div>
+
+      <div id="stepsSection" class="section-hidden">
+        <p class="font-semibold mt-4">Solution Steps:</p>
+        <ol id="stepsResult" class="space-y-3 text-sm"></ol>
+      </div>
     </div>
   </div>
 
+  <script src="/assets/animation.js"></script>
   <script src="/assets/script.js"></script>
 </body>
 </html>

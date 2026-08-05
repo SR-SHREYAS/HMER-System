@@ -44,10 +44,12 @@ function predictSequence(imageFile) {
       document.getElementById('seqResult').value = predictedSeq;
       document.getElementById('latexSource').value = translatedLatex;
       generateLatex(translatedLatex);
+      renderPredictionDetails(data);
     } else if (data.error) {
       document.getElementById('latexRender').innerHTML = `<span class="text-red-600">${data.error}</span>`;
       document.getElementById('seqResult').value = '';
       document.getElementById('latexSource').value = '';
+      resetPredictionDetails();
     }
   })
   .catch(err => {
@@ -55,6 +57,7 @@ function predictSequence(imageFile) {
     document.getElementById('latexRender').innerHTML = '<span class="text-red-600">Error generating sequence</span>';
     document.getElementById('seqResult').value = '';
     document.getElementById('latexSource').value = '';
+    resetPredictionDetails();
   });
 }
 
@@ -62,6 +65,78 @@ function generateLatex(sequence) {
   const latexContainer = document.getElementById('latexRender');
   latexContainer.innerHTML = `$$${sequence}$$`; // MathJax format
   MathJax.typesetPromise([latexContainer]);
+}
+
+// Build the task, answer and step DOM from the backend response, then let
+// animation.js progressively reveal it.
+function renderPredictionDetails(data) {
+  const task = String(data.task || 'unknown');
+  const isKnownTask = task.toLowerCase() !== 'unknown';
+
+  const taskNode = document.getElementById('taskResult');
+  const answerSection = document.getElementById('answerSection');
+  const answerResult = document.getElementById('answerResult');
+  const stepsSection = document.getElementById('stepsSection');
+  const stepsContainer = document.getElementById('stepsResult');
+
+  taskNode.textContent = task.charAt(0).toUpperCase() + task.slice(1);
+
+  const hasAnswer = data.answer != null && String(data.answer).trim() !== '';
+  answerResult.textContent = hasAnswer ? data.answer : '';
+
+  const stepNodes = isKnownTask ? buildStepNodes(data.steps || [], stepsContainer) : [];
+
+  playSolutionAnimation({
+    taskNode: taskNode,
+    answerSection: answerSection,
+    stepsSection: stepsSection,
+    stepNodes: stepNodes,
+    showSteps: isKnownTask,
+    showAnswer: isKnownTask && hasAnswer
+  });
+}
+
+function buildStepNodes(steps, container) {
+  container.innerHTML = '';
+  if (!steps || steps.length === 0) {
+    return [];
+  }
+
+  const nodes = [];
+  steps.forEach((step, index) => {
+    const item = document.createElement('li');
+    item.className = 'border rounded p-3';
+
+    const heading = document.createElement('div');
+    heading.className = 'font-semibold';
+    heading.textContent = `Step ${index + 1}: ${step.title || ''}`.trim();
+    item.appendChild(heading);
+
+    if (step.description) {
+      const desc = document.createElement('p');
+      desc.className = 'text-gray-700 mt-1';
+      desc.textContent = step.description;
+      item.appendChild(desc);
+    }
+
+    const math = document.createElement('div');
+    math.className = 'mt-1';
+    math.innerHTML = `$$${step.latex || ''}$$`;
+    item.appendChild(math);
+
+    container.appendChild(item);
+    nodes.push(item);
+  });
+
+  MathJax.typesetPromise([container]);
+  return nodes;
+}
+
+function resetPredictionDetails() {
+  resetSolutionAnimation();
+  document.getElementById('taskResult').textContent = '';
+  document.getElementById('answerResult').textContent = '';
+  document.getElementById('stepsResult').innerHTML = '';
 }
 
 // Tab switching logic
@@ -127,6 +202,7 @@ document.getElementById('sendCanvasBtn').addEventListener('click', () => {
     document.getElementById('latexRender').innerHTML = '<span class="text-red-600">Please write something first</span>';
     document.getElementById('seqResult').value = '';
     document.getElementById('latexSource').value = '';
+    resetPredictionDetails();
     return;
   }
 
@@ -145,10 +221,12 @@ document.getElementById('sendCanvasBtn').addEventListener('click', () => {
         document.getElementById('seqResult').value = predictedSeq;
         document.getElementById('latexSource').value = translatedLatex;
         generateLatex(translatedLatex);
+        renderPredictionDetails(data);
       } else if (data.error) {
         document.getElementById('latexRender').innerHTML = `<span class="text-red-600">${data.error}</span>`;
         document.getElementById('seqResult').value = '';
         document.getElementById('latexSource').value = '';
+        resetPredictionDetails();
       }
     })
     .catch(err => {
@@ -156,6 +234,7 @@ document.getElementById('sendCanvasBtn').addEventListener('click', () => {
       document.getElementById('latexRender').innerHTML = '<span class="text-red-600">Error generating LaTeX</span>';
       document.getElementById('seqResult').value = '';
       document.getElementById('latexSource').value = '';
+      resetPredictionDetails();
     });
   }, 'image/png');
 });
