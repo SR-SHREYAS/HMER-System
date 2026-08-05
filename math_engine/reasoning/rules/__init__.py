@@ -13,6 +13,7 @@ from .divide_coefficient_rule import DivideCoefficientRule
 from .expand_rule import ExpandRule
 from .move_constant_rule import MoveConstantRule
 from .move_variable_rule import MoveVariableRule
+from .multiply_both_sides_rule import MultiplyBothSidesRule
 from .rule_engine import RuleEngine
 from .rule_exceptions import (
     RuleEngineError,
@@ -29,6 +30,7 @@ __all__ = [
     "ExpandRule",
     "MoveConstantRule",
     "MoveVariableRule",
+    "MultiplyBothSidesRule",
     "RuleEngine",
     "RuleEngineError",
     "RuleError",

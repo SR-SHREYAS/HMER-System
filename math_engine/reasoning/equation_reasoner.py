@@ -24,6 +24,7 @@ from .rules.divide_coefficient_rule import DivideCoefficientRule
 from .rules.expand_rule import ExpandRule
 from .rules.move_constant_rule import MoveConstantRule
 from .rules.move_variable_rule import MoveVariableRule
+from .rules.multiply_both_sides_rule import MultiplyBothSidesRule
 from .rules.rule_engine import RuleEngine
 from .rules.rule_exceptions import RuleError
 
@@ -116,6 +117,7 @@ class EquationReasoner(BaseReasoner):
         engine = RuleEngine(
             [
                 ExpandRule(),
+                MultiplyBothSidesRule(),
                 MoveVariableRule(),
                 MoveConstantRule(),
                 DivideCoefficientRule(),

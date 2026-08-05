@@ -15,7 +15,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from sympy import Poly, Symbol
+from sympy import Poly, Pow, Rational, Symbol, expand, preorder_traversal
+from sympy.polys.polyerrors import PolynomialError
 
 from ...models import Step
 from .rule_exceptions import (
@@ -98,7 +99,13 @@ def linear_components(expression) -> tuple[Symbol, object, object]:
     """
     symbol = _single_symbol(expression)
 
-    polynomial = Poly(expression.lhs - expression.rhs, symbol)
+    try:
+        polynomial = Poly(expand(expression.lhs - expression.rhs), symbol)
+    except PolynomialError as exc:
+        raise UnsupportedExpressionError(
+            "Rules only support linear equations; the expression could not "
+            "be reduced to a polynomial."
+        ) from exc
     if polynomial.is_zero or polynomial.degree() > 1:
         raise UnsupportedExpressionError(
             "Rules only support linear equations; "
@@ -111,6 +118,25 @@ def linear_components(expression) -> tuple[Symbol, object, object]:
             "Rules only support equations with a nonzero variable coefficient."
         )
     return symbol, coefficient, constant
+
+
+def denominators(expression) -> set:
+    """Return every distinct integer denominator present in an expression.
+
+    Catches denominators written either as a rational number (e.g. ``3/2``,
+    represented as :class:`Rational`) or as a reciprocal power (e.g. ``x/5``,
+    represented as ``Pow(5, -1)``). Symbolic (algebraic) denominators are out
+    of scope and are ignored.
+    """
+    found = set()
+    for node in preorder_traversal(expression):
+        if isinstance(node, Rational) and node.q > 1:
+            found.add(node.q)
+        elif isinstance(node, Pow):
+            if node.exp == -1 or node.exp == Rational(-1, 1):
+                if node.base.is_integer:
+                    found.add(int(node.base))
+    return found
 
 
 def make_step(
@@ -129,5 +155,6 @@ __all__ = [
     "BaseRule",
     "_single_symbol",
     "linear_components",
+    "denominators",
     "make_step",
 ]
