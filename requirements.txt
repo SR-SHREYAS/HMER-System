@@ -1,5 +1,7 @@
 einops
 sconf
+sympy
+antlr4-python3-runtime==4.11
 typer
 wandb
 Pillow
