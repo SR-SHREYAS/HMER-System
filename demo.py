@@ -16,6 +16,22 @@ from mtl.lit_mtl import LitMTL
 from torchvision.transforms import ToTensor
 import torch
 
+# --- Optional mathematical engine -----------------------------------------
+# Recognition must keep working even when the engine (or its SymPy dependency)
+# is unavailable, so these imports are guarded and the math pipeline is never
+# allowed to fail a request.
+try:
+    from math_engine.dispatcher import DispatcherError, dispatch
+    from math_engine.parser import LatexParserError, latex_to_expression
+    from math_engine.reasoning import ReasoningError
+    from math_engine.reasoning import default_engine as reasoning_engine
+    from math_engine.models import Expression
+    from math_engine.solver import SolverError
+    from math_engine.solver import default_factory as solver_factory
+    _MATH_ENGINE_AVAILABLE = True
+except ImportError:
+    _MATH_ENGINE_AVAILABLE = False
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_float32_matmul_precision("medium")
 
@@ -97,8 +113,17 @@ async def predict_sequence(
     torch.cuda.empty_cache()
     gc.collect()
     print(pred_sequence)
+
+    math_result = _run_math_engine(pred_latex)
     return JSONResponse(
-        content={"sequence": pred_sequence, "latex": pred_latex},
+        content={
+            "sequence": pred_sequence,
+            "latex": pred_latex,
+            "expression": math_result["expression"],
+            "task": math_result["task"],
+            "answer": math_result["answer"],
+            "steps": math_result["steps"],
+        },
         status_code=200
     )
 
@@ -106,6 +131,59 @@ async def predict_sequence(
 @app.get("/health")
 async def health():
     return {"status": "ok", "device": str(DEVICE)}
+
+
+_EMPTY_MATH_RESULT = {
+    "expression": None,
+    "task": "unknown",
+    "answer": None,
+    "steps": [],
+}
+
+
+def _run_math_engine(latex: str) -> dict:
+    """Run the optional math pipeline and return JSON-safe results.
+
+    Any parser, dispatcher, solver or reasoning failure is logged and falls
+    back to the empty result so recognition always succeeds.
+    """
+    if not _MATH_ENGINE_AVAILABLE:
+        return dict(_EMPTY_MATH_RESULT)
+
+    try:
+        parsed = latex_to_expression(latex)
+        expression = Expression(raw_latex=latex, sympy_expression=parsed)
+        classified = dispatch(expression)
+        solver = solver_factory.build(classified)
+        solution = solver.solve(classified)
+        reasoned = reasoning_engine.generate(solution)
+        return {
+            "expression": _serialize_expression(classified),
+            "task": classified.task.value,
+            "answer": solution.final_answer,
+            "steps": [_serialize_step(step) for step in reasoned.steps],
+        }
+    except (LatexParserError, DispatcherError, SolverError, ReasoningError) as exc:
+        print(f"[math-engine] {type(exc).__name__}: {exc}")
+        return dict(_EMPTY_MATH_RESULT)
+
+
+def _serialize_expression(expression) -> dict:
+    """Convert an Expression model into a JSON-safe dictionary."""
+    return {
+        "raw_latex": expression.raw_latex,
+        "task": expression.task.value if expression.task else None,
+    }
+
+
+def _serialize_step(step) -> dict:
+    """Convert a Step model into a JSON-safe dictionary."""
+    return {
+        "title": step.title,
+        "description": step.description,
+        "latex": step.latex,
+        "metadata": dict(step.metadata),
+    }
 
 
 async def pipe(contents):
