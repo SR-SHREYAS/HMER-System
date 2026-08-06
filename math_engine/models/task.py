@@ -23,6 +23,9 @@ class TaskType(Enum):
     EQUATION = "equation"
     """An expression stating an equality between two sides."""
 
+    QUADRATIC_EQUATION = "quadratic_equation"
+    """A quadratic (second-degree) equation in a single variable."""
+
     DERIVATIVE = "derivative"
     """An expression representing a derivative of a function."""
 

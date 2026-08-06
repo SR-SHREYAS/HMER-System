@@ -8,9 +8,11 @@ left empty for future phases to fill.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
-from sympy import Basic, solve
+from sympy import Add, Basic, Poly, expand, solve
+from sympy.polys.polyerrors import PolynomialError
 
 from ..models import Expression, Solution, TaskType
 from .base_solver import BaseSolver
@@ -52,6 +54,8 @@ class EquationSolver(BaseSolver):
             If SymPy fails to solve the expression.
         """
         expr = self._extract_expression(problem)
+        if self._polynomial_degree(expr) == 2:
+            return self._route_quadratic(problem)
         result = self._solve_equation(expr)
         return Solution(
             expression=problem,
@@ -74,6 +78,73 @@ class EquationSolver(BaseSolver):
             The underlying SymPy object to solve.
         """
         return problem.sympy_expression
+
+    def _polynomial_degree(self, expr: Basic) -> int | None:
+        """Return the polynomial degree of the equation in its variable.
+
+        The degree is computed with SymPy polynomial analysis by expanding
+        ``lhs - rhs`` around the single free variable of the equation. Items
+        that are not a single-variable polynomial (no variable, several
+        variables, or a non-polynomial body) yield ``None``.
+
+        Parameters
+        ----------
+        expr :
+            The SymPy equality to inspect.
+
+        Returns
+        -------
+        int | None
+            The degree of the polynomial, or ``None`` when it is not a
+            single-variable polynomial.
+        """
+        lhs = getattr(expr, "lhs", None)
+        rhs = getattr(expr, "rhs", None)
+        if lhs is None or rhs is None:
+            return None
+
+        symbols = expr.free_symbols
+        if len(symbols) != 1:
+            return None
+        variable = next(iter(symbols))
+
+        try:
+            polynomial = Poly(self._flatten(expand(lhs - rhs)), variable)
+        except (PolynomialError, ValueError, TypeError):
+            return None
+        return polynomial.degree()
+
+    @staticmethod
+    def _flatten(expr: Basic) -> Basic:
+        """Canonicalize an expression by re-evaluating nested additions.
+
+        The LaTeX parser produces unevaluated, nested :class:`Add` nodes that
+        plain :func:`expand` does not re-evaluate; this rebuilds the additions
+        so SymPy's polynomial machinery can analyse the equation.
+        """
+        if isinstance(expr, Add):
+            return Add(*(EquationSolver._flatten(arg) for arg in expr.args))
+        return expr
+
+    def _route_quadratic(self, problem: Expression) -> Solution:
+        """Route a quadratic equation to the registered quadratic solver.
+
+        The quadratic solver is not implemented yet, so this raises
+        :class:`SolverNotImplementedError` on its behalf.
+
+        Parameters
+        ----------
+        problem :
+            The expression to route.
+
+        Returns
+        -------
+        Solution
+            The solution produced by the quadratic solver.
+        """
+        quadratic = replace(problem, task=TaskType.QUADRATIC_EQUATION)
+        solver = default_factory.build(quadratic)
+        return solver.solve(quadratic)
 
     def _solve_equation(self, expr: Basic) -> Any:
         """Solve a SymPy equality symbolically.
