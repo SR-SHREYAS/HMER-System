@@ -1,11 +1,13 @@
 """Concrete solver for quadratic equations.
 
-:class:`QuadraticSolver` solves quadratic equations by applying the
-:class:`NormalizeQuadraticRule` to rearrange the equation into the standard
-quadratic form ``ax**2 + bx + c = 0``. The normalization is the extent of the
-current phase: coefficients are not extracted and the equation is not solved
-yet. The solver registers against the process-wide factory under the
-:class:`TaskType.QUADRATIC_EQUATION` task.
+:class:`QuadraticSolver` solves quadratic equations in two stages. It first
+applies the :class:`NormalizeQuadraticRule` to rearrange the equation into the
+standard quadratic form ``ax**2 + bx + c = 0``, then applies the
+:class:`ExtractQuadraticCoefficientsRule` to read the coefficients ``a``, ``b``
+and ``c`` off the normalized form. Extraction is the extent of the current
+phase: the discriminant is not computed, roots are not classified and the
+equation is not solved yet. The solver registers against the process-wide
+factory under the :class:`TaskType.QUADRATIC_EQUATION` task.
 """
 
 from __future__ import annotations
@@ -13,7 +15,10 @@ from __future__ import annotations
 from sympy import Basic, latex
 
 from ..models import Expression, Solution, TaskType
-from ..reasoning.rules import NormalizeQuadraticRule
+from ..reasoning.rules import (
+    ExtractQuadraticCoefficientsRule,
+    NormalizeQuadraticRule,
+)
 from .base_solver import BaseSolver
 from .solver_factory import default_factory
 
@@ -23,15 +28,17 @@ class QuadraticSolver(BaseSolver):
     """Solver for quadratic equations.
 
     Given a classified ``QUADRATIC_EQUATION`` expression, normalizes the
-    equation into the standard form ``ax**2 + bx + c = 0`` via SymPy and
-    returns a :class:`Solution` carrying the accompanying reasoning step and
-    the normalized equation as its current answer.
+    equation into the standard form ``ax**2 + bx + c = 0`` via SymPy, extracts
+    the quadratic coefficients from that form, and returns a :class:`Solution`
+    carrying the accompanying reasoning steps and the normalized equation as
+    its current answer. The extracted coefficients are stored in the solution
+    metadata for the pipeline phases that follow.
     """
 
     task_type = TaskType.QUADRATIC_EQUATION
 
     def solve(self, problem: Expression) -> Solution:
-        """Normalize a quadratic equation expression.
+        """Normalize and extract coefficients of a quadratic expression.
 
         Parameters
         ----------
@@ -41,8 +48,10 @@ class QuadraticSolver(BaseSolver):
         Returns
         -------
         Solution
-            A solution whose single step explains the normalization and whose
-            ``final_answer`` holds the normalized equation.
+            A solution whose steps explain the normalization and the
+            coefficient extraction, whose ``final_answer`` holds the
+            normalized equation, and whose metadata carries the extracted
+            coefficients for subsequent phases.
 
         Raises
         ------
@@ -50,12 +59,17 @@ class QuadraticSolver(BaseSolver):
             If the equation cannot be reduced to a polynomial in one variable.
         """
         expr = self._extract_expression(problem)
-        normalized, step = NormalizeQuadraticRule().apply(expr)
+        normalized, normalize_step = NormalizeQuadraticRule().apply(expr)
+        _, extract_step = ExtractQuadraticCoefficientsRule().apply(normalized)
         return Solution(
             expression=problem,
-            steps=(step,),
+            steps=(normalize_step, extract_step),
             final_answer=self._render(normalized),
-            metadata={"normalized": normalized},
+            metadata={
+                "normalized": normalized,
+                "coefficients": extract_step.metadata["coefficients"],
+                "variable": extract_step.metadata["variable"],
+            },
         )
 
     def _extract_expression(self, problem: Expression) -> Basic:
@@ -66,3 +80,6 @@ class QuadraticSolver(BaseSolver):
     def _render(equation) -> str:
         """Render a normalized equation as a human-readable string."""
         return latex(equation)
+
+
+__all__ = ["QuadraticSolver"]

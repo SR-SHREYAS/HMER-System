@@ -11,6 +11,7 @@ to produce reasoning steps. The initial rules (:class:`MoveConstantRule`,
 from .base_rule import BaseRule, linear_components, make_step
 from .divide_coefficient_rule import DivideCoefficientRule
 from .expand_rule import ExpandRule
+from .extract_quadratic_coefficients_rule import ExtractQuadraticCoefficientsRule
 from .move_constant_rule import MoveConstantRule
 from .move_variable_rule import MoveVariableRule
 from .multiply_both_sides_rule import MultiplyBothSidesRule
@@ -29,6 +30,7 @@ __all__ = [
     "make_step",
     "DivideCoefficientRule",
     "ExpandRule",
+    "ExtractQuadraticCoefficientsRule",
     "MoveConstantRule",
     "MoveVariableRule",
     "MultiplyBothSidesRule",
