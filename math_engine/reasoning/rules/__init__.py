@@ -14,6 +14,7 @@ from .expand_rule import ExpandRule
 from .move_constant_rule import MoveConstantRule
 from .move_variable_rule import MoveVariableRule
 from .multiply_both_sides_rule import MultiplyBothSidesRule
+from .normalize_quadratic_rule import NormalizeQuadraticRule
 from .rule_engine import RuleEngine
 from .rule_exceptions import (
     RuleEngineError,
@@ -31,6 +32,7 @@ __all__ = [
     "MoveConstantRule",
     "MoveVariableRule",
     "MultiplyBothSidesRule",
+    "NormalizeQuadraticRule",
     "RuleEngine",
     "RuleEngineError",
     "RuleError",

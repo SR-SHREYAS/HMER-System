@@ -1,34 +1,37 @@
 """Concrete solver for quadratic equations.
 
-:class:`QuadraticSolver` is the placeholder for the quadratic-equation phase of
-the equation capability. It declares the :class:`TaskType` it will eventually
-handle and registers against the process-wide factory, but it does not yet
-implement any quadratic mathematics: calling :meth:`QuadraticSolver.solve`
-raises the solver layer's standard "not implemented" exception.
+:class:`QuadraticSolver` solves quadratic equations by applying the
+:class:`NormalizeQuadraticRule` to rearrange the equation into the standard
+quadratic form ``ax**2 + bx + c = 0``. The normalization is the extent of the
+current phase: coefficients are not extracted and the equation is not solved
+yet. The solver registers against the process-wide factory under the
+:class:`TaskType.QUADRATIC_EQUATION` task.
 """
 
 from __future__ import annotations
 
+from sympy import Basic, latex
+
 from ..models import Expression, Solution, TaskType
+from ..reasoning.rules import NormalizeQuadraticRule
 from .base_solver import BaseSolver
-from .solver_exceptions import SolverNotImplementedError
 from .solver_factory import default_factory
 
 
 @default_factory.register
 class QuadraticSolver(BaseSolver):
-    """Placeholder solver for quadratic equations.
+    """Solver for quadratic equations.
 
-    Quadratic equations are routed here by :class:`EquationSolver` once their
-    polynomial degree has been detected as two. The solving mathematics is not
-    implemented in this phase, so :meth:`solve` raises
-    :class:`SolverNotImplementedError`.
+    Given a classified ``QUADRATIC_EQUATION`` expression, normalizes the
+    equation into the standard form ``ax**2 + bx + c = 0`` via SymPy and
+    returns a :class:`Solution` carrying the accompanying reasoning step and
+    the normalized equation as its current answer.
     """
 
     task_type = TaskType.QUADRATIC_EQUATION
 
     def solve(self, problem: Expression) -> Solution:
-        """Solve a quadratic equation expression.
+        """Normalize a quadratic equation expression.
 
         Parameters
         ----------
@@ -38,13 +41,28 @@ class QuadraticSolver(BaseSolver):
         Returns
         -------
         Solution
-            The complete solution produced by the solver.
+            A solution whose single step explains the normalization and whose
+            ``final_answer`` holds the normalized equation.
 
         Raises
         ------
-        SolverNotImplementedError
-            Always; quadratic solving is not implemented yet.
+        SolverError
+            If the equation cannot be reduced to a polynomial in one variable.
         """
-        raise SolverNotImplementedError(
-            "Solving quadratic equations is not implemented yet."
+        expr = self._extract_expression(problem)
+        normalized, step = NormalizeQuadraticRule().apply(expr)
+        return Solution(
+            expression=problem,
+            steps=(step,),
+            final_answer=self._render(normalized),
+            metadata={"normalized": normalized},
         )
+
+    def _extract_expression(self, problem: Expression) -> Basic:
+        """Return the SymPy expression from the model."""
+        return problem.sympy_expression
+
+    @staticmethod
+    def _render(equation) -> str:
+        """Render a normalized equation as a human-readable string."""
+        return latex(equation)
