@@ -176,13 +176,30 @@ def _serialize_expression(expression) -> dict:
     }
 
 
+def _json_safe(value):
+    """Recursively convert a value into a JSON-serializable form.
+
+    Symbolic mathematics (`roots`, coefficients, discriminants) is stored on
+    steps as SymPy objects, which are not JSON-serializable. This renderer
+    keeps primitive values intact but stringifies any other object so the
+    frontend always receives valid JSON.
+    """
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
 def _serialize_step(step) -> dict:
     """Convert a Step model into a JSON-safe dictionary."""
     return {
         "title": step.title,
         "description": step.description,
         "latex": step.latex,
-        "metadata": dict(step.metadata),
+        "metadata": _json_safe(dict(step.metadata)),
     }
 
 

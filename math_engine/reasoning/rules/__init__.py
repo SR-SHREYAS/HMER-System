@@ -9,6 +9,7 @@ to produce reasoning steps. The initial rules (:class:`MoveConstantRule`,
 """
 
 from .base_rule import BaseRule, linear_components, make_step
+from .classify_quadratic_roots_rule import ClassifyQuadraticRootsRule
 from .compute_discriminant_rule import ComputeDiscriminantRule
 from .divide_coefficient_rule import DivideCoefficientRule
 from .expand_rule import ExpandRule
@@ -17,6 +18,7 @@ from .move_constant_rule import MoveConstantRule
 from .move_variable_rule import MoveVariableRule
 from .multiply_both_sides_rule import MultiplyBothSidesRule
 from .normalize_quadratic_rule import NormalizeQuadraticRule
+from .quadratic_formula_rule import QuadraticFormulaRule
 from .rule_engine import RuleEngine
 from .rule_exceptions import (
     RuleEngineError,
@@ -24,11 +26,13 @@ from .rule_exceptions import (
     RuleNotApplicableError,
     UnsupportedExpressionError,
 )
+from .simplify_quadratic_roots_rule import SimplifyQuadraticRootsRule
 
 __all__ = [
     "BaseRule",
     "linear_components",
     "make_step",
+    "ClassifyQuadraticRootsRule",
     "ComputeDiscriminantRule",
     "DivideCoefficientRule",
     "ExpandRule",
@@ -37,9 +41,11 @@ __all__ = [
     "MoveVariableRule",
     "MultiplyBothSidesRule",
     "NormalizeQuadraticRule",
+    "QuadraticFormulaRule",
     "RuleEngine",
     "RuleEngineError",
     "RuleError",
     "RuleNotApplicableError",
     "UnsupportedExpressionError",
+    "SimplifyQuadraticRootsRule",
 ]
