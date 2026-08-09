@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from PIL import Image
 import io
 import gc
@@ -131,6 +132,37 @@ async def predict_sequence(
 @app.get("/health")
 async def health():
     return {"status": "ok", "device": str(DEVICE)}
+
+
+class SolveRequest(BaseModel):
+    """JSON body accepted by the frontend-integration ``/solve`` proxy."""
+    input: str
+    type: str = "derivative"
+
+
+@app.post("/solve")
+async def solve_proxy(request: SolveRequest):
+    """Forward a solver request to the adapter-backed API.
+
+    The frontend posts recognized LaTeX here (same origin as the served UI).
+    This route is a thin integration seam only: all work is delegated to
+    ``api.adapter.solve``, which owns normalization, engine dispatch and
+    serialization. It never touches the math engine directly.
+    """
+    try:
+        from api.adapter import solve
+    except ImportError:
+        return dict(_EMPTY_MATH_RESULT)
+    try:
+        return solve(request.input, request.type)
+    except Exception as exc:  # noqa: BLE001 - never let the UI crash
+        return {
+            "success": False,
+            "result": "",
+            "steps": [],
+            "verification": {"passed": False, "method": "symbolic", "samples": 0},
+            "error": f"Unexpected failure: {exc}",
+        }
 
 
 _EMPTY_MATH_RESULT = {

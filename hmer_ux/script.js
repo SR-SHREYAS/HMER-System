@@ -1,9 +1,11 @@
 let predictedSeq = "";
 let translatedLatex = "";
 const BASE_URL = window.location.origin;
+const SOLVE_URL = BASE_URL + '/solve';
 const DRAW_BG = 'white';
 const DRAW_FG = 'black';
 const MODEL_BG = 'black';
+let solving = false;
 
 
 document.getElementById('imageInput').addEventListener('change', function(event) {
@@ -44,7 +46,7 @@ function predictSequence(imageFile) {
       document.getElementById('seqResult').value = predictedSeq;
       document.getElementById('latexSource').value = translatedLatex;
       generateLatex(translatedLatex);
-      renderPredictionDetails(data);
+      solveLatex(translatedLatex);
     } else if (data.error) {
       document.getElementById('latexRender').innerHTML = `<span class="text-red-600">${data.error}</span>`;
       document.getElementById('seqResult').value = '';
@@ -112,6 +114,15 @@ function buildStepNodes(steps, container) {
     heading.textContent = `Step ${index + 1}: ${step.title || ''}`.trim();
     item.appendChild(heading);
 
+    // Optional rule name from metadata (e.g. "trig_rule" -> "trig").
+    const kind = step.rule || (step.metadata && step.metadata.kind);
+    if (kind) {
+      const rule = document.createElement('span');
+      rule.className = 'inline-block text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded mt-1';
+      rule.textContent = String(kind).replace(/_/g, ' ');
+      item.appendChild(rule);
+    }
+
     if (step.description) {
       const desc = document.createElement('p');
       desc.className = 'text-gray-700 mt-1';
@@ -128,7 +139,7 @@ function buildStepNodes(steps, container) {
     nodes.push(item);
   });
 
-  MathJax.typesetPromise([container]);
+  MathJax.typesetPromise([container]).catch(err => console.warn('MathJax step error', err));
   return nodes;
 }
 
@@ -136,7 +147,126 @@ function resetPredictionDetails() {
   resetSolutionAnimation();
   document.getElementById('taskResult').textContent = '';
   document.getElementById('answerResult').textContent = '';
+  document.getElementById('errorResult').textContent = '';
   document.getElementById('stepsResult').innerHTML = '';
+  document.getElementById('solveStatus').classList.add('section-hidden');
+  document.getElementById('errorSection').classList.add('section-hidden');
+  restoreSendButton();
+}
+
+// ---------------------------------------------------------------------------
+// /solve integration: after OCR produces LaTeX, POST it to the API and show
+// the final result plus the step-by-step solution.
+// ---------------------------------------------------------------------------
+
+function solveLatex(latex) {
+  if (!latex || solving) return;
+  solving = true;
+
+  const sendBtn = document.getElementById('sendCanvasBtn');
+  const status = document.getElementById('solveStatus');
+  const errorSection = document.getElementById('errorSection');
+  const answerSection = document.getElementById('answerSection');
+  const stepsSection = document.getElementById('stepsSection');
+  const taskNode = document.getElementById('taskResult');
+
+  // Cancel any pending reveal, show the loading state and block repeats.
+  cancelSolutionAnimation();
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Solving…';
+  status.classList.remove('section-hidden');
+  answerSection.classList.add('section-hidden');
+  stepsSection.classList.add('section-hidden');
+  errorSection.classList.add('section-hidden');
+  document.getElementById('answerResult').textContent = '';
+  document.getElementById('errorResult').textContent = '';
+  document.getElementById('stepsResult').innerHTML = '';
+
+  fetch(SOLVE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input: latex, type: 'derivative' })
+  })
+  .then(res => res.json())
+  .then(data => {
+    solving = false;
+    status.classList.add('section-hidden');
+    restoreSendButton();
+    taskNode.textContent = 'Derivative';
+    if (data.success) {
+      renderSolveSuccess(data);
+    } else {
+      renderSolveError(data.error || 'Failed to solve expression');
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    solving = false;
+    status.classList.add('section-hidden');
+    restoreSendButton();
+    taskNode.textContent = 'Derivative';
+    renderSolveError('Network error while solving: ' + err.message);
+  });
+}
+
+function restoreSendButton() {
+  const sendBtn = document.getElementById('sendCanvasBtn');
+  sendBtn.disabled = false;
+  sendBtn.textContent = 'Send';
+}
+
+function renderSolveSuccess(data) {
+  const taskNode = document.getElementById('taskResult');
+  const answerSection = document.getElementById('answerSection');
+  const answerResult = document.getElementById('answerResult');
+  const stepsSection = document.getElementById('stepsSection');
+  const stepsContainer = document.getElementById('stepsResult');
+
+  const resultLatex = (data.result || '').trim();
+
+  // Render the final result through MathJax.
+  answerResult.innerHTML = '';
+  if (resultLatex) {
+    const math = document.createElement('div');
+    math.className = 'text-base';
+    math.innerHTML = `$$${resultLatex}$$`;
+    answerResult.appendChild(math);
+  } else {
+    answerResult.textContent = '(no result)';
+  }
+
+  const stepNodes = buildStepNodes(data.steps || [], stepsContainer);
+  const hasResult = resultLatex !== '';
+
+  // Reveal task, steps and answer progressively.
+  requestAnimationFrame(() => {
+    playSolutionAnimation({
+      taskNode: taskNode,
+      answerSection: answerSection,
+      stepsSection: stepsSection,
+      stepNodes: stepNodes,
+      showSteps: stepNodes.length > 0,
+      showAnswer: hasResult
+    });
+  });
+
+  // Ensure the rendered result math typesets after reveal.
+  if (resultLatex) {
+    MathJax.typesetPromise([answerResult]).catch(err => console.warn('MathJax result error', err));
+  }
+}
+
+function renderSolveError(message) {
+  const errorSection = document.getElementById('errorSection');
+  const errorResult = document.getElementById('errorResult');
+  const answerSection = document.getElementById('answerSection');
+  const stepsSection = document.getElementById('stepsSection');
+
+  errorResult.textContent = message;
+  resetSolutionAnimation();
+  errorSection.classList.remove('section-hidden');
+  answerSection.classList.add('section-hidden');
+  stepsSection.classList.add('section-hidden');
 }
 
 // Tab switching logic
@@ -221,7 +351,7 @@ document.getElementById('sendCanvasBtn').addEventListener('click', () => {
         document.getElementById('seqResult').value = predictedSeq;
         document.getElementById('latexSource').value = translatedLatex;
         generateLatex(translatedLatex);
-        renderPredictionDetails(data);
+        solveLatex(translatedLatex);
       } else if (data.error) {
         document.getElementById('latexRender').innerHTML = `<span class="text-red-600">${data.error}</span>`;
         document.getElementById('seqResult').value = '';
