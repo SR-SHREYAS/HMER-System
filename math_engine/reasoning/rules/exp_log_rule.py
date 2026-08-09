@@ -11,13 +11,12 @@
 It reads the expression and variable from the structured metadata produced by
 :class:`ExtractDerivativeStructureRule`. When the expression is ``exp(inner)``
 or ``log(inner)`` the rule computes ``inner'`` by routing the argument through
-the existing rule pipeline (:class:`ConstantDerivativeRule`,
-:class:`PowerRule`, :class:`SumRule`, :class:`ProductRule`,
-:class:`QuotientRule`, :class:`ChainRule`, :class:`TrigRule`) -- the inner is
-never differentiated by hand. The result ``outer'(inner) * inner'`` is returned
-raw: nothing is simplified. The rule only applies when the inner can be
-differentiated by the existing pipeline; otherwise it leaves the expression
-unchanged.
+the full rule pipeline the solver uses (implicit, constant, power, sum,
+product, quotient, chain, trigonometric and exp/log rules) -- the inner is
+never differentiated by hand and nested arguments are differentiated
+recursively. The result ``outer'(inner) * inner'`` is returned raw: nothing is
+simplified. The rule only applies when the inner can be differentiated by the
+full pipeline; otherwise it leaves the expression unchanged.
 """
 
 from __future__ import annotations
@@ -27,13 +26,6 @@ from sympy import Integer, Mul, Pow, exp, latex, log
 from ...models import Step
 from .base_rule import BaseRule, make_step
 from .rule_exceptions import UnsupportedExpressionError
-from .constant_derivative_rule import ConstantDerivativeRule
-from .power_rule import PowerRule
-from .sum_rule import SumRule
-from .product_rule import ProductRule
-from .quotient_rule import QuotientRule
-from .chain_rule import ChainRule
-from .trig_rule import TrigRule
 
 
 class ExpLogRule(BaseRule):
@@ -119,60 +111,42 @@ class ExpLogRule(BaseRule):
 
     @staticmethod
     def _inner(expression):
-        """Return the argument of ``exp``/``log`` or ``None`` otherwise."""
+        """Return the argument of ``exp``/``log`` or ``None`` otherwise.
+
+        Accepts ``log`` in both forms SymPy produces -- the two-argument form
+        ``log(x, E)`` the parser emits for ``\\ln(x)`` and the one-argument
+        form ``log(x)`` --- and returns the argument in either case.
+        """
         if expression.func is exp and len(expression.args) == 1:
             return expression.args[0]
-        if expression.func is log and len(expression.args) == 2:
+        if expression.func is log and len(expression.args) in (1, 2):
             return expression.args[0]
         return None
 
     @staticmethod
     def _differentiable(expression, variable) -> bool:
-        """Return whether an inner can be differentiated by the existing rules."""
-        structure = {"expression": expression, "variable": variable}
-        return (
-            ConstantDerivativeRule().can_apply(structure)
-            or PowerRule().can_apply(structure)
-            or SumRule().can_apply(structure)
-            or ProductRule().can_apply(structure)
-            or QuotientRule().can_apply(structure)
-            or ChainRule().can_apply(structure)
-            or TrigRule().can_apply(structure)
-        )
+        """Return whether an inner can be differentiated by the full pipeline."""
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        return result is not None
 
     @staticmethod
     def _differentiate(expression, variable):
-        """Differentiate an inner through the existing rule pipeline.
+        """Differentiate an inner through the full rule pipeline.
 
-        Each inner is routed through the same rules the solver uses: the
-        constant rule, the power rule, the sum rule, the product rule, the
-        quotient rule, the chain rule and the trig rule.
+        Each inner is routed through the same ordered chain the solver uses
+        -- implicit, constant, power, sum, product, quotient, chain,
+        trigonometric and exp/log.
         """
-        structure = {"expression": expression, "variable": variable}
-        if ConstantDerivativeRule().can_apply(structure):
-            result, _ = ConstantDerivativeRule().apply(structure)
-            return result
-        if PowerRule().can_apply(structure):
-            result, _ = PowerRule().apply(structure)
-            return result
-        if SumRule().can_apply(structure):
-            result, _ = SumRule().apply(structure)
-            return result
-        if ProductRule().can_apply(structure):
-            result, _ = ProductRule().apply(structure)
-            return result
-        if QuotientRule().can_apply(structure):
-            result, _ = QuotientRule().apply(structure)
-            return result
-        if ChainRule().can_apply(structure):
-            result, _ = ChainRule().apply(structure)
-            return result
-        if TrigRule().can_apply(structure):
-            result, _ = TrigRule().apply(structure)
-            return result
-        raise UnsupportedExpressionError(
-            f"ExpLogRule cannot differentiate the inner {expression!r}."
-        )
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        if result is None:
+            raise UnsupportedExpressionError(
+                f"ExpLogRule cannot differentiate the inner {expression!r}."
+            )
+        return result
 
 
 __all__ = ["ExpLogRule"]

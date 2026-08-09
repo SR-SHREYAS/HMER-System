@@ -35,8 +35,8 @@ class PowerRule(BaseRule):
         """Return whether the expression is a power of the differentiation variable.
 
         The expression is a power when the base is exactly the variable and the
-        exponent is a number, or when the expression is simply the variable
-        itself (implicit exponent one).
+        exponent is a constant (independent of the variable), or when the
+        expression is simply the variable itself (implicit exponent one).
 
         Parameters
         ----------
@@ -46,8 +46,8 @@ class PowerRule(BaseRule):
         Returns
         -------
         bool
-            ``True`` when the expression is exactly ``variable**n`` or the
-            variable itself.
+            ``True`` when the expression is exactly ``variable**n`` with a
+            constant exponent, or the variable itself.
         """
         try:
             expression = structure["expression"]
@@ -103,12 +103,17 @@ class PowerRule(BaseRule):
         """Return the exponent when ``expression`` is a power of ``variable``.
 
         Returns the exponent ``n`` when the expression is exactly
-        ``variable**n``, ``1`` when it is the variable itself, and ``None``
-        when the expression is not a power of the variable.
+        ``variable**n`` with ``n`` a constant exponent, ``1`` when it is the
+        variable itself, and ``None`` when the expression is not a power of the
+        variable or the exponent depends on the variable (e.g. ``x**x``).
         """
         if expression == variable:
             return Integer(1)
-        if isinstance(expression, Pow) and expression.base == variable:
+        if (
+            isinstance(expression, Pow)
+            and expression.base == variable
+            and not expression.exp.has(variable)
+        ):
             return expression.exp
         return None
 

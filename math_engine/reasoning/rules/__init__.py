@@ -18,6 +18,8 @@ from .expand_rule import ExpandRule
 from .exp_log_rule import ExpLogRule
 from .extract_derivative_structure_rule import ExtractDerivativeStructureRule
 from .extract_quadratic_coefficients_rule import ExtractQuadraticCoefficientsRule
+from .general_power_rule import GeneralPowerRule
+from .implicit_derivative_rule import ImplicitDerivativeRule
 from .move_constant_rule import MoveConstantRule
 from .move_variable_rule import MoveVariableRule
 from .multiply_both_sides_rule import MultiplyBothSidesRule
@@ -50,6 +52,8 @@ __all__ = [
     "ExtractDerivativeStructureRule",
     "ExtractQuadraticCoefficientsRule",
     "ExpLogRule",
+    "GeneralPowerRule",
+    "ImplicitDerivativeRule",
     "MoveConstantRule",
     "MoveVariableRule",
     "MultiplyBothSidesRule",

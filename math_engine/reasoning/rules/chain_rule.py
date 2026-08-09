@@ -13,13 +13,12 @@ such as ``(x+1)**2``, ``(x**2)**3`` or ``sqrt(x**2)`` -- the rule treats the
 base as the inner function and the power as the outer function. The outer
 derivative is computed by differentiating the outer function against a fresh
 inner placeholder (reusing :class:`PowerRule`); the inner derivative is computed
-by routing the base through the same existing rule pipeline
-(:class:`ConstantDerivativeRule`, :class:`PowerRule`, :class:`SumRule`,
-:class:`ProductRule`, :class:`QuotientRule`) -- the inner is never
-differentiated by hand. The result ``outer'(inner) * inner'`` is returned raw:
-nothing is simplified, expanded or merged. The rule only applies when the inner
-can be differentiated by the existing pipeline; otherwise it leaves the
-expression unchanged.
+by routing the base through the full rule pipeline the solver uses (implicit,
+constant, power, sum, product, quotient, chain, trigonometric and exp/log
+rules) -- the inner is never differentiated by hand. The result
+``outer'(inner) * inner'`` is returned raw: nothing is simplified, expanded or
+merged. The rule only applies when the inner can be differentiated by the full
+pipeline; otherwise it leaves the expression unchanged.
 """
 
 from __future__ import annotations
@@ -29,11 +28,7 @@ from sympy import Mul, Pow, Symbol, latex
 from ...models import Step
 from .base_rule import BaseRule, make_step
 from .rule_exceptions import UnsupportedExpressionError
-from .constant_derivative_rule import ConstantDerivativeRule
 from .power_rule import PowerRule
-from .sum_rule import SumRule
-from .product_rule import ProductRule
-from .quotient_rule import QuotientRule
 
 
 class ChainRule(BaseRule):
@@ -49,8 +44,11 @@ class ChainRule(BaseRule):
         """Return whether the expression is a supported composition.
 
         The expression is a candidate when it is a :class:`sympy.Pow` whose base
-        is not just the differentiation variable and whose base (the inner
-        function) can be differentiated by the existing rules.
+        is not just the differentiation variable, whose exponent is constant
+        (does not depend on the variable), and whose base (the inner function)
+        can be differentiated by the existing rules. Powers with a
+        variable-dependent exponent, such as ``(x + 1)**x``, are handled by the
+        general power rule instead.
 
         Parameters
         ----------
@@ -67,7 +65,11 @@ class ChainRule(BaseRule):
             variable = structure["variable"]
         except (KeyError, TypeError):
             return False
-        if not isinstance(expression, Pow) or expression.base == variable:
+        if (
+            not isinstance(expression, Pow)
+            or expression.base == variable
+            or expression.exp.has(variable)
+        ):
             return False
         return ChainRule._differentiable(expression.base, variable)
 
@@ -143,43 +145,29 @@ class ChainRule(BaseRule):
 
     @staticmethod
     def _differentiable(expression, variable) -> bool:
-        """Return whether an inner function can be differentiated by the rules."""
-        structure = {"expression": expression, "variable": variable}
-        return (
-            ConstantDerivativeRule().can_apply(structure)
-            or PowerRule().can_apply(structure)
-            or SumRule().can_apply(structure)
-            or ProductRule().can_apply(structure)
-            or QuotientRule().can_apply(structure)
-        )
+        """Return whether an inner function can be differentiated by the pipeline."""
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        return result is not None
 
     @staticmethod
     def _differentiate(expression, variable):
-        """Differentiate an inner function through the existing rule pipeline.
+        """Differentiate an inner function through the full rule pipeline.
 
-        Each inner function is routed through the same rules the solver uses:
-        the constant rule, the power rule, the sum rule, the product rule and
-        the quotient rule.
+        Each inner function is routed through the same ordered chain the
+        solver uses -- implicit, constant, power, sum, product, quotient,
+        chain, trigonometric and exp/log.
         """
-        structure = {"expression": expression, "variable": variable}
-        if ConstantDerivativeRule().can_apply(structure):
-            result, _ = ConstantDerivativeRule().apply(structure)
-            return result
-        if PowerRule().can_apply(structure):
-            result, _ = PowerRule().apply(structure)
-            return result
-        if SumRule().can_apply(structure):
-            result, _ = SumRule().apply(structure)
-            return result
-        if ProductRule().can_apply(structure):
-            result, _ = ProductRule().apply(structure)
-            return result
-        if QuotientRule().can_apply(structure):
-            result, _ = QuotientRule().apply(structure)
-            return result
-        raise UnsupportedExpressionError(
-            f"ChainRule cannot differentiate the inner function {expression!r}."
-        )
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        if result is None:
+            raise UnsupportedExpressionError(
+                f"ChainRule cannot differentiate the inner function "
+                f"{expression!r}."
+            )
+        return result
 
 
 __all__ = ["ChainRule"]

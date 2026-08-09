@@ -9,12 +9,12 @@
 It reads the expression and variable from the structured metadata produced by
 :class:`ExtractDerivativeStructureRule`. When the expression is a top-level
 :class:`sympy.Mul`, the rule splits it into its factors and differentiates every
-factor by routing it through the same existing rule pipeline
-(:class:`ConstantDerivativeRule`, :class:`PowerRule`, :class:`SumRule`) -- no
-factor is differentiated by hand. For two factors the result is ``f'*g + f*g'``;
-for more than two factors the same sum of pairwise contributions is built over
-all factors. The rule only applies when it can differentiate every factor;
-otherwise it leaves the expression unchanged.
+factor by routing it through the full rule pipeline the solver uses (implicit,
+constant, power, sum, product, quotient, chain, trigonometric and exp/log
+rules) -- no factor is differentiated by hand. For two factors the result is
+``f'*g + f*g'``; for more than two factors the same sum of pairwise
+contributions is built over all factors. The rule only applies when it can
+differentiate every factor; otherwise it leaves the expression unchanged.
 """
 
 from __future__ import annotations
@@ -24,9 +24,6 @@ from sympy import Add, Mul, Pow, latex
 from ...models import Step
 from .base_rule import BaseRule, make_step
 from .rule_exceptions import UnsupportedExpressionError
-from .constant_derivative_rule import ConstantDerivativeRule
-from .power_rule import PowerRule
-from .sum_rule import SumRule
 
 
 class ProductRule(BaseRule):
@@ -61,7 +58,9 @@ class ProductRule(BaseRule):
         if not isinstance(expression, Mul):
             return False
         if any(
-            isinstance(factor, Pow) and factor.exp < 0
+            isinstance(factor, Pow)
+            and factor.exp.is_number
+            and factor.exp < 0
             for factor in expression.args
         ):
             return False
@@ -118,34 +117,28 @@ class ProductRule(BaseRule):
 
     @staticmethod
     def _differentiable(expression, variable) -> bool:
-        """Return whether a factor can be differentiated by the existing rules."""
-        structure = {"expression": expression, "variable": variable}
-        return (
-            ConstantDerivativeRule().can_apply(structure)
-            or PowerRule().can_apply(structure)
-            or SumRule().can_apply(structure)
-        )
+        """Return whether a factor can be differentiated by the full pipeline."""
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        return result is not None
 
     @staticmethod
     def _differentiate(expression, variable):
-        """Differentiate a single factor through the existing rule pipeline.
+        """Differentiate a single factor through the full rule pipeline.
 
-        Each factor is routed through the same rules the solver uses: the
-        constant rule, the power rule, and the sum rule.
+        Each factor is routed through the same ordered chain the solver
+        uses -- implicit, constant, power, sum, product, quotient, chain,
+        trigonometric and exp/log.
         """
-        structure = {"expression": expression, "variable": variable}
-        if ConstantDerivativeRule().can_apply(structure):
-            result, _ = ConstantDerivativeRule().apply(structure)
-            return result
-        if PowerRule().can_apply(structure):
-            result, _ = PowerRule().apply(structure)
-            return result
-        if SumRule().can_apply(structure):
-            result, _ = SumRule().apply(structure)
-            return result
-        raise UnsupportedExpressionError(
-            f"ProductRule cannot differentiate the factor {expression!r}."
-        )
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        if result is None:
+            raise UnsupportedExpressionError(
+                f"ProductRule cannot differentiate the factor {expression!r}."
+            )
+        return result
 
 
 __all__ = ["ProductRule"]

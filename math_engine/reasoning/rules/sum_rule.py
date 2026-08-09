@@ -8,12 +8,12 @@
 
 It reads the expression and variable from the structured metadata produced by
 :class:`ExtractDerivativeStructureRule`. When the expression is a top-level
-:class:`sympy.Add`, every term is differentiated by routing it through the same
-existing rule pipeline (:class:`ConstantDerivativeRule`, :class:`PowerRule`,
-and recursively :class:`SumRule` for nested additions) -- no term is
-differentiated by hand. The per-term results are then recombined with addition.
-The rule only applies when it can differentiate every term; otherwise it leaves
-the expression unchanged.
+:class:`sympy.Add`, every term is differentiated by routing it through the full
+rule pipeline the solver uses (implicit, constant, power, sum, product,
+quotient, chain, trigonometric and exp/log rules) -- no term is differentiated
+by hand and nested arguments are differentiated recursively. The per-term
+results are then recombined with addition. The rule only applies when it can
+differentiate every term; otherwise it leaves the expression unchanged.
 """
 
 from __future__ import annotations
@@ -23,8 +23,6 @@ from sympy import Add, latex
 from ...models import Step
 from .base_rule import BaseRule, make_step
 from .rule_exceptions import UnsupportedExpressionError
-from .constant_derivative_rule import ConstantDerivativeRule
-from .power_rule import PowerRule
 
 
 class SumRule(BaseRule):
@@ -100,41 +98,28 @@ class SumRule(BaseRule):
 
     @staticmethod
     def _supported(expression, variable) -> bool:
-        """Return whether a term can be differentiated by the existing rules."""
-        if isinstance(expression, Add):
-            return all(
-                SumRule._supported(term, variable) for term in expression.args
-            )
-        structure = {"expression": expression, "variable": variable}
-        return ConstantDerivativeRule().can_apply(
-            structure
-        ) or PowerRule().can_apply(structure)
+        """Return whether a term can be differentiated by the full pipeline."""
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        return result is not None
 
     @staticmethod
     def _differentiate(expression, variable):
-        """Differentiate a single term through the existing rule pipeline.
+        """Differentiate a single term through the full rule pipeline.
 
-        Each term is routed through the same rules the solver uses: the
-        constant rule, the power rule, and (for nested additions) the sum rule
-        itself.
+        Each term is routed through the same ordered chain the solver uses
+        -- implicit, constant, power, sum, product, quotient, chain,
+        trigonometric and exp/log.
         """
-        if isinstance(expression, Add):
-            terms = [
-                SumRule._differentiate(term, variable)
-                for term in expression.args
-            ]
-            return Add(*terms, evaluate=False)
+        from ...solver.derivative_solver import DerivativeSolver
 
-        structure = {"expression": expression, "variable": variable}
-        if ConstantDerivativeRule().can_apply(structure):
-            result, _ = ConstantDerivativeRule().apply(structure)
-            return result
-        if PowerRule().can_apply(structure):
-            result, _ = PowerRule().apply(structure)
-            return result
-        raise UnsupportedExpressionError(
-            f"SumRule cannot differentiate the term {expression!r}."
-        )
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        if result is None:
+            raise UnsupportedExpressionError(
+                f"SumRule cannot differentiate the term {expression!r}."
+            )
+        return result
 
 
 __all__ = ["SumRule"]

@@ -11,9 +11,9 @@ It reads the expression and variable from the structured metadata produced by
 represented in SymPy as a :class:`sympy.Mul` whose factors include a power with
 a negative exponent (e.g. ``x/x``, ``3/x``) -- the rule splits it into the
 numerator ``f`` and denominator ``g``. Both ``f'`` and ``g'`` are computed by
-routing the sub-expressions through the same existing rule pipeline
-(:class:`ConstantDerivativeRule`, :class:`PowerRule`, :class:`SumRule`,
-:class:`ProductRule`) -- no derivative is computed by hand. The result
+routing the sub-expressions through the full rule pipeline the solver uses
+(implicit, constant, power, sum, product, quotient, chain, trigonometric and
+exp/log rules) -- no derivative is computed by hand. The result
 ``(f'*g - f*g') / g**2`` is returned raw: nothing is simplified, cancelled or
 reduced. The rule only applies when it can differentiate both the numerator and
 the denominator; otherwise it leaves the expression unchanged.
@@ -26,10 +26,6 @@ from sympy import Add, Integer, Mul, Pow, Rational, latex
 from ...models import Step
 from .base_rule import BaseRule, make_step
 from .rule_exceptions import UnsupportedExpressionError
-from .constant_derivative_rule import ConstantDerivativeRule
-from .power_rule import PowerRule
-from .sum_rule import SumRule
-from .product_rule import ProductRule
 
 
 class QuotientRule(BaseRule):
@@ -162,38 +158,28 @@ class QuotientRule(BaseRule):
 
     @staticmethod
     def _differentiable(expression, variable) -> bool:
-        """Return whether a part can be differentiated by the existing rules."""
-        structure = {"expression": expression, "variable": variable}
-        return (
-            ConstantDerivativeRule().can_apply(structure)
-            or PowerRule().can_apply(structure)
-            or SumRule().can_apply(structure)
-            or ProductRule().can_apply(structure)
-        )
+        """Return whether a part can be differentiated by the full pipeline."""
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        return result is not None
 
     @staticmethod
     def _differentiate(expression, variable):
-        """Differentiate a single part through the existing rule pipeline.
+        """Differentiate a single part through the full rule pipeline.
 
-        Each part is routed through the same rules the solver uses: the
-        constant rule, the power rule, the sum rule and the product rule.
+        Each part is routed through the same ordered chain the solver uses
+        -- implicit, constant, power, sum, product, quotient, chain,
+        trigonometric and exp/log.
         """
-        structure = {"expression": expression, "variable": variable}
-        if ConstantDerivativeRule().can_apply(structure):
-            result, _ = ConstantDerivativeRule().apply(structure)
-            return result
-        if PowerRule().can_apply(structure):
-            result, _ = PowerRule().apply(structure)
-            return result
-        if SumRule().can_apply(structure):
-            result, _ = SumRule().apply(structure)
-            return result
-        if ProductRule().can_apply(structure):
-            result, _ = ProductRule().apply(structure)
-            return result
-        raise UnsupportedExpressionError(
-            f"QuotientRule cannot differentiate the part {expression!r}."
-        )
+        from ...solver.derivative_solver import DerivativeSolver
+
+        result, _ = DerivativeSolver._solve_single(expression, variable)
+        if result is None:
+            raise UnsupportedExpressionError(
+                f"QuotientRule cannot differentiate the part {expression!r}."
+            )
+        return result
 
 
 __all__ = ["QuotientRule"]
