@@ -6,6 +6,7 @@ through :class:`SolverFactory`.
 """
 
 from .base_solver import BaseSolver
+from .derivative_solver import DerivativeSolver
 from .equation_solver import EquationSolver
 from .quadratic_solver import QuadraticSolver
 from .solver_exceptions import (
@@ -17,6 +18,7 @@ from .solver_factory import SolverFactory, default_factory
 
 __all__ = [
     "BaseSolver",
+    "DerivativeSolver",
     "EquationSolver",
     "QuadraticSolver",
     "SolverFactory",

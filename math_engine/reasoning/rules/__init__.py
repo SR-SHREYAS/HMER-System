@@ -11,14 +11,17 @@ to produce reasoning steps. The initial rules (:class:`MoveConstantRule`,
 from .base_rule import BaseRule, linear_components, make_step
 from .classify_quadratic_roots_rule import ClassifyQuadraticRootsRule
 from .compute_discriminant_rule import ComputeDiscriminantRule
+from .constant_derivative_rule import ConstantDerivativeRule
 from .divide_coefficient_rule import DivideCoefficientRule
 from .expand_rule import ExpandRule
+from .extract_derivative_structure_rule import ExtractDerivativeStructureRule
 from .extract_quadratic_coefficients_rule import ExtractQuadraticCoefficientsRule
 from .move_constant_rule import MoveConstantRule
 from .move_variable_rule import MoveVariableRule
 from .multiply_both_sides_rule import MultiplyBothSidesRule
 from .normalize_quadratic_rule import NormalizeQuadraticRule
 from .quadratic_formula_rule import QuadraticFormulaRule
+from .power_rule import PowerRule
 from .rule_engine import RuleEngine
 from .rule_exceptions import (
     RuleEngineError,
@@ -34,14 +37,17 @@ __all__ = [
     "make_step",
     "ClassifyQuadraticRootsRule",
     "ComputeDiscriminantRule",
+    "ConstantDerivativeRule",
     "DivideCoefficientRule",
     "ExpandRule",
+    "ExtractDerivativeStructureRule",
     "ExtractQuadraticCoefficientsRule",
     "MoveConstantRule",
     "MoveVariableRule",
     "MultiplyBothSidesRule",
     "NormalizeQuadraticRule",
     "QuadraticFormulaRule",
+    "PowerRule",
     "RuleEngine",
     "RuleEngineError",
     "RuleError",
