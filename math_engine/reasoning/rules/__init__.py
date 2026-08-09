@@ -22,6 +22,7 @@ from .multiply_both_sides_rule import MultiplyBothSidesRule
 from .normalize_quadratic_rule import NormalizeQuadraticRule
 from .quadratic_formula_rule import QuadraticFormulaRule
 from .power_rule import PowerRule
+from .product_rule import ProductRule
 from .rule_engine import RuleEngine
 from .rule_exceptions import (
     RuleEngineError,
@@ -49,6 +50,7 @@ __all__ = [
     "NormalizeQuadraticRule",
     "QuadraticFormulaRule",
     "PowerRule",
+    "ProductRule",
     "RuleEngine",
     "RuleEngineError",
     "RuleError",

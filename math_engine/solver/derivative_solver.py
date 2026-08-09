@@ -18,6 +18,7 @@ from ..reasoning.rules import (
     ConstantDerivativeRule,
     ExtractDerivativeStructureRule,
     PowerRule,
+    ProductRule,
     SumRule,
 )
 from .base_solver import BaseSolver
@@ -31,8 +32,9 @@ class DerivativeSolver(BaseSolver):
     Given a classified ``DERIVATIVE`` expression, extracts the structure of the
     SymPy derivative (expression, variable, order) and applies the constant rule
     when the expression is constant, the power rule when the expression is a
-    power of the variable, and the sum rule when the expression is a supported
-    top-level addition. The returned :class:`Solution` carries the reasoning
+    power of the variable, the sum rule when the expression is a supported
+    top-level addition, and the product rule when the expression is a supported
+    top-level product. The returned :class:`Solution` carries the reasoning
     steps and any result so far; other expression forms are not differentiated
     yet.
     """
@@ -51,9 +53,9 @@ class DerivativeSolver(BaseSolver):
         -------
         Solution
             A solution whose steps explain the structure extraction and, when
-            applicable, the constant and/or power rules. ``final_answer`` holds
-            the result when a rule applied and is empty otherwise. Metadata
-            carries the structure and the result.
+            applicable, the constant, power, sum and/or product rules.
+            ``final_answer`` holds the result when a rule applied and is empty
+            otherwise. Metadata carries the structure and the result.
 
         Raises
         ------
@@ -83,6 +85,10 @@ class DerivativeSolver(BaseSolver):
         elif SumRule().can_apply(structure):
             result, sum_step = SumRule().apply(structure)
             steps.append(sum_step)
+            final_answer = self._render(result)
+        elif ProductRule().can_apply(structure):
+            result, product_step = ProductRule().apply(structure)
+            steps.append(product_step)
             final_answer = self._render(result)
         return Solution(
             expression=problem,
