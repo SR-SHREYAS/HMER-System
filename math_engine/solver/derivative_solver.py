@@ -11,7 +11,7 @@ against the process-wide factory under the :class:`TaskType.DERIVATIVE` task.
 
 from __future__ import annotations
 
-from sympy import Derivative, Integer, latex
+from sympy import Derivative, Integer, diff, latex, simplify
 
 from ..models import Expression, Solution, TaskType
 from ..reasoning.rules import (
@@ -22,7 +22,9 @@ from ..reasoning.rules import (
     ProductRule,
     QuotientRule,
     SumRule,
+    make_step,
 )
+from ..reasoning.simplifier import Simplifier
 from .base_solver import BaseSolver
 from .solver_factory import default_factory
 
@@ -74,32 +76,40 @@ class DerivativeSolver(BaseSolver):
         }
 
         steps = [step]
-        final_answer = ""
         result = None
         if ConstantDerivativeRule().can_apply(structure):
             result, constant_step = ConstantDerivativeRule().apply(structure)
             steps.append(constant_step)
-            final_answer = self._render(result)
         elif PowerRule().can_apply(structure):
             result, power_step = PowerRule().apply(structure)
             steps.append(power_step)
-            final_answer = self._render(result)
         elif SumRule().can_apply(structure):
             result, sum_step = SumRule().apply(structure)
             steps.append(sum_step)
-            final_answer = self._render(result)
         elif ProductRule().can_apply(structure):
             result, product_step = ProductRule().apply(structure)
             steps.append(product_step)
-            final_answer = self._render(result)
         elif QuotientRule().can_apply(structure):
             result, quotient_step = QuotientRule().apply(structure)
             steps.append(quotient_step)
-            final_answer = self._render(result)
         elif ChainRule().can_apply(structure):
             result, chain_step = ChainRule().apply(structure)
             steps.append(chain_step)
-            final_answer = self._render(result)
+        simplified_result = self._simplify(result) if result is not None else None
+        if simplified_result is not None:
+            final_step = make_step(
+                "Simplify the result",
+                "Simplify the result.",
+                latex(simplified_result),
+                "final_simplification",
+            )
+            final_step.metadata["before"] = result
+            final_step.metadata["after"] = simplified_result
+            steps.append(final_step)
+        final_answer = self._render(simplified_result) if simplified_result is not None else ""
+        verification = self._verify(
+            structure["expression"], structure["variables"], simplified_result
+        )
         return Solution(
             expression=problem,
             steps=tuple(steps),
@@ -107,12 +117,55 @@ class DerivativeSolver(BaseSolver):
             metadata={
                 **structure,
                 "result": result,
+                "simplified_result": simplified_result,
+                "verification": verification,
             },
         )
 
     def _extract_expression(self, problem: Expression) -> Derivative:
         """Return the SymPy derivative from the model."""
         return problem.sympy_expression
+
+    @staticmethod
+    def _simplify(value):
+        """Compute a clean human-readable form of a result value.
+
+        Only the minimal, predictable rewrites of :class:`Simplifier` are
+        applied, and only after all reasoning steps have been produced, so the
+        steps themselves stay untouched.
+        """
+        return Simplifier().simplify(value)
+
+    @staticmethod
+    def _verify(expression, variables, result) -> dict:
+        """Check a computed derivative against SymPy's ``diff``.
+
+        The expected derivative is ``sympy.diff(expression, *variables)`` and
+        the result passes when ``simplify(result - expected) == 0``. This is a
+        pure bookkeeping step: it neither modifies the final answer nor touches
+        any reasoning step.
+
+        Parameters
+        ----------
+        expression :
+            The sub-expression being differentiated.
+        variables :
+            The differentiation variables (includes repeats for higher order).
+        result :
+            The computed (simplified) derivative, or ``None`` when no rule
+            applied.
+
+        Returns
+        -------
+        dict
+            A ``{"passed": bool, "expected": object}`` mapping.
+        """
+        expected = diff(expression, *variables)
+        if result is None:
+            passed = False
+        else:
+            passed = simplify(result - expected) == 0
+        return {"passed": bool(passed), "expected": expected}
 
     @staticmethod
     def _render(value) -> str:
