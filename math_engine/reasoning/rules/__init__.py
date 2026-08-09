@@ -15,6 +15,7 @@ from .compute_discriminant_rule import ComputeDiscriminantRule
 from .constant_derivative_rule import ConstantDerivativeRule
 from .divide_coefficient_rule import DivideCoefficientRule
 from .expand_rule import ExpandRule
+from .exp_log_rule import ExpLogRule
 from .extract_derivative_structure_rule import ExtractDerivativeStructureRule
 from .extract_quadratic_coefficients_rule import ExtractQuadraticCoefficientsRule
 from .move_constant_rule import MoveConstantRule
@@ -48,6 +49,7 @@ __all__ = [
     "ExpandRule",
     "ExtractDerivativeStructureRule",
     "ExtractQuadraticCoefficientsRule",
+    "ExpLogRule",
     "MoveConstantRule",
     "MoveVariableRule",
     "MultiplyBothSidesRule",

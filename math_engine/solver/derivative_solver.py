@@ -17,6 +17,7 @@ from ..models import Expression, Solution, TaskType
 from ..reasoning.rules import (
     ChainRule,
     ConstantDerivativeRule,
+    ExpLogRule,
     ExtractDerivativeStructureRule,
     PowerRule,
     ProductRule,
@@ -99,6 +100,9 @@ class DerivativeSolver(BaseSolver):
         elif TrigRule().can_apply(structure):
             result, trig_step = TrigRule().apply(structure)
             steps.append(trig_step)
+        elif ExpLogRule().can_apply(structure):
+            result, exp_log_step = ExpLogRule().apply(structure)
+            steps.append(exp_log_step)
         simplified_result = self._simplify(result) if result is not None else None
         if simplified_result is not None:
             final_step = make_step(

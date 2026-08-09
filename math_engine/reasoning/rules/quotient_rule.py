@@ -153,8 +153,12 @@ class QuotientRule(BaseRule):
 
     @staticmethod
     def _negative(expression) -> bool:
-        """Return whether a power has a strictly negative exponent."""
-        return isinstance(expression, Pow) and expression.exp < 0
+        """Return whether a power has a strictly negative numeric exponent."""
+        return (
+            isinstance(expression, Pow)
+            and expression.exp.is_number
+            and expression.exp < 0
+        )
 
     @staticmethod
     def _differentiable(expression, variable) -> bool:
