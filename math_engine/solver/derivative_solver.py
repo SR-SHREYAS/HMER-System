@@ -22,6 +22,7 @@ from ..reasoning.rules import (
     ProductRule,
     QuotientRule,
     SumRule,
+    TrigRule,
     make_step,
 )
 from ..reasoning.simplifier import Simplifier
@@ -95,6 +96,9 @@ class DerivativeSolver(BaseSolver):
         elif ChainRule().can_apply(structure):
             result, chain_step = ChainRule().apply(structure)
             steps.append(chain_step)
+        elif TrigRule().can_apply(structure):
+            result, trig_step = TrigRule().apply(structure)
+            steps.append(trig_step)
         simplified_result = self._simplify(result) if result is not None else None
         if simplified_result is not None:
             final_step = make_step(

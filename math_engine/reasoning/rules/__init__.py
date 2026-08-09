@@ -34,6 +34,7 @@ from .rule_exceptions import (
 )
 from .simplify_quadratic_roots_rule import SimplifyQuadraticRootsRule
 from .sum_rule import SumRule
+from .trig_rule import TrigRule
 
 __all__ = [
     "BaseRule",
@@ -62,4 +63,5 @@ __all__ = [
     "UnsupportedExpressionError",
     "SimplifyQuadraticRootsRule",
     "SumRule",
+    "TrigRule",
 ]
