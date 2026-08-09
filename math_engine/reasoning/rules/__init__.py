@@ -9,6 +9,7 @@ to produce reasoning steps. The initial rules (:class:`MoveConstantRule`,
 """
 
 from .base_rule import BaseRule, linear_components, make_step
+from .chain_rule import ChainRule
 from .classify_quadratic_roots_rule import ClassifyQuadraticRootsRule
 from .compute_discriminant_rule import ComputeDiscriminantRule
 from .constant_derivative_rule import ConstantDerivativeRule
@@ -38,6 +39,7 @@ __all__ = [
     "BaseRule",
     "linear_components",
     "make_step",
+    "ChainRule",
     "ClassifyQuadraticRootsRule",
     "ComputeDiscriminantRule",
     "ConstantDerivativeRule",

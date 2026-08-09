@@ -15,6 +15,7 @@ from sympy import Derivative, Integer, latex
 
 from ..models import Expression, Solution, TaskType
 from ..reasoning.rules import (
+    ChainRule,
     ConstantDerivativeRule,
     ExtractDerivativeStructureRule,
     PowerRule,
@@ -94,6 +95,10 @@ class DerivativeSolver(BaseSolver):
         elif QuotientRule().can_apply(structure):
             result, quotient_step = QuotientRule().apply(structure)
             steps.append(quotient_step)
+            final_answer = self._render(result)
+        elif ChainRule().can_apply(structure):
+            result, chain_step = ChainRule().apply(structure)
+            steps.append(chain_step)
             final_answer = self._render(result)
         return Solution(
             expression=problem,
