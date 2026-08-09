@@ -30,6 +30,7 @@ from .rule_exceptions import (
     UnsupportedExpressionError,
 )
 from .simplify_quadratic_roots_rule import SimplifyQuadraticRootsRule
+from .sum_rule import SumRule
 
 __all__ = [
     "BaseRule",
@@ -54,4 +55,5 @@ __all__ = [
     "RuleNotApplicableError",
     "UnsupportedExpressionError",
     "SimplifyQuadraticRootsRule",
+    "SumRule",
 ]

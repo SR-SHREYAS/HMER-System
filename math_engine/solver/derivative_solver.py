@@ -18,6 +18,7 @@ from ..reasoning.rules import (
     ConstantDerivativeRule,
     ExtractDerivativeStructureRule,
     PowerRule,
+    SumRule,
 )
 from .base_solver import BaseSolver
 from .solver_factory import default_factory
@@ -29,10 +30,11 @@ class DerivativeSolver(BaseSolver):
 
     Given a classified ``DERIVATIVE`` expression, extracts the structure of the
     SymPy derivative (expression, variable, order) and applies the constant rule
-    when the expression is constant, then the power rule when the expression is
-    exactly a power of the variable. The returned :class:`Solution` carries the
-    reasoning steps and any result so far; other expression forms are not
-    differentiated yet.
+    when the expression is constant, the power rule when the expression is a
+    power of the variable, and the sum rule when the expression is a supported
+    top-level addition. The returned :class:`Solution` carries the reasoning
+    steps and any result so far; other expression forms are not differentiated
+    yet.
     """
 
     task_type = TaskType.DERIVATIVE
@@ -77,6 +79,10 @@ class DerivativeSolver(BaseSolver):
         elif PowerRule().can_apply(structure):
             result, power_step = PowerRule().apply(structure)
             steps.append(power_step)
+            final_answer = self._render(result)
+        elif SumRule().can_apply(structure):
+            result, sum_step = SumRule().apply(structure)
+            steps.append(sum_step)
             final_answer = self._render(result)
         return Solution(
             expression=problem,
