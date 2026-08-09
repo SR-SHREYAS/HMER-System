@@ -23,6 +23,7 @@ from .normalize_quadratic_rule import NormalizeQuadraticRule
 from .quadratic_formula_rule import QuadraticFormulaRule
 from .power_rule import PowerRule
 from .product_rule import ProductRule
+from .quotient_rule import QuotientRule
 from .rule_engine import RuleEngine
 from .rule_exceptions import (
     RuleEngineError,
@@ -51,6 +52,7 @@ __all__ = [
     "QuadraticFormulaRule",
     "PowerRule",
     "ProductRule",
+    "QuotientRule",
     "RuleEngine",
     "RuleEngineError",
     "RuleError",

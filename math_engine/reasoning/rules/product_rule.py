@@ -19,7 +19,7 @@ otherwise it leaves the expression unchanged.
 
 from __future__ import annotations
 
-from sympy import Add, Mul, latex
+from sympy import Add, Mul, Pow, latex
 
 from ...models import Step
 from .base_rule import BaseRule, make_step
@@ -58,7 +58,14 @@ class ProductRule(BaseRule):
             variable = structure["variable"]
         except (KeyError, TypeError):
             return False
-        return isinstance(expression, Mul) and all(
+        if not isinstance(expression, Mul):
+            return False
+        if any(
+            isinstance(factor, Pow) and factor.exp < 0
+            for factor in expression.args
+        ):
+            return False
+        return all(
             ProductRule._differentiable(factor, variable)
             for factor in expression.args
         )

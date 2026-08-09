@@ -19,6 +19,7 @@ from ..reasoning.rules import (
     ExtractDerivativeStructureRule,
     PowerRule,
     ProductRule,
+    QuotientRule,
     SumRule,
 )
 from .base_solver import BaseSolver
@@ -89,6 +90,10 @@ class DerivativeSolver(BaseSolver):
         elif ProductRule().can_apply(structure):
             result, product_step = ProductRule().apply(structure)
             steps.append(product_step)
+            final_answer = self._render(result)
+        elif QuotientRule().can_apply(structure):
+            result, quotient_step = QuotientRule().apply(structure)
+            steps.append(quotient_step)
             final_answer = self._render(result)
         return Solution(
             expression=problem,
