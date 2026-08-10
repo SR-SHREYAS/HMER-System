@@ -35,9 +35,13 @@ class SolveRequest(BaseModel):
     """JSON body accepted by ``POST /solve``."""
 
     input: str = Field(description="Raw LaTeX string describing the problem.")
-    type: Literal["derivative"] = Field(
+    type: Literal["derivative", "equation"] = Field(
         default="derivative",
-        description="Type of problem to solve (extensible in later phases).",
+        description=(
+            "Requested problem type. ``derivative`` is kept for backward "
+            "compatibility, but routing is structural: an equality input is "
+            "always solved as an equation."
+        ),
     )
 
 

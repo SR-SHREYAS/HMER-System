@@ -17,7 +17,7 @@ import re
 import threading
 from typing import Any
 
-from sympy import Derivative, Symbol
+from sympy import Derivative, Eq, Symbol
 
 from math_engine.dispatcher import DispatcherError, dispatch
 from math_engine.models import Expression
@@ -30,7 +30,10 @@ from math_engine.parser import (
 )
 from math_engine.solver import SolverError, default_factory
 
-_SUPPORTED_TYPES: tuple[str, ...] = ("derivative",)
+#: Request types accepted by the API. ``"derivative"`` stays supported for
+#: backward compatibility, but final routing is structural (see ``_to_problem``):
+#: an equality in the parsed input wins over the requested type.
+_SUPPORTED_TYPES: tuple[str, ...] = ("derivative", "equation")
 
 #: Symbols preferred as the differentiation variable, in order.
 _PREFERRED_VARIABLES: tuple[str, ...] = ("x", "t", "u", "z")
@@ -57,8 +60,11 @@ def solve(latex: str, problem_type: str = "derivative") -> dict[str, Any]:
     latex :
         The raw LaTeX string describing the problem.
     problem_type :
-        The kind of problem to solve. Only ``"derivative"`` is supported in
-        this phase; other values raise :class:`UnsupportedProblemTypeError`.
+        The kind of problem to solve. ``"derivative"`` and ``"equation"``
+        are accepted; other values raise :class:`UnsupportedProblemTypeError`.
+        Routing to the right solver is structural (based on the parsed SymPy
+        object), so an equality input is always solved as an equation even
+        when the request type says ``"derivative"``.
 
     Returns
     -------
@@ -186,15 +192,23 @@ def _normalize_latex(latex: str) -> str:
     return _FUNCTION_PATTERN.sub(r"\\\1\2", " ".join(latex.split()))
 
 
-def _to_problem(parsed: Any) -> Derivative:
-    """Wrap a parsed expression into the solver's expected Derivative form.
+def _to_problem(parsed: Any) -> Any:
+    """Return the parsed SymPy object in the form the engine expects.
 
-    A parsed ``Derivative`` (from input like ``\\frac{d}{dx} x^2``) is passed
-    through unchanged. A bare expression (``x^2``) or an implicit equality
-    (``x^2 + y^2 = 1``) is wrapped into ``Derivative(expr, variable)`` with
-    the differentiation variable selected from the expression's free symbols.
+    Classification is purely structural, based on the actual SymPy type:
+
+    * An already-parsed ``Eq`` (from ``x^2 = 25``, ``3x - 4 = 2``) is passed
+      through unchanged and is dispatched as :class:`TaskType.EQUATION` -- the
+      existing :class:`EquationSolver` then routes linear vs quadratic.
+    * An already-parsed ``Derivative`` (from ``\\frac{d}{dx} x^2``) is passed
+      through unchanged and is dispatched as :class:`TaskType.DERIVATIVE`.
+    * Any other bare expression (``x^2``, ``sin(x)``, ``x^x``) keeps the
+      historical derivative API behavior and is wrapped into
+      ``Derivative(expr, variable)``.
+
+    An equality is never wrapped into a derivative.
     """
-    if isinstance(parsed, Derivative):
+    if isinstance(parsed, (Eq, Derivative)):
         return parsed
     variable = _select_variable(parsed)
     return Derivative(parsed, variable)

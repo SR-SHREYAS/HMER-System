@@ -23,7 +23,12 @@ TEST_CASES: list[tuple[str, str]] = [
     ("x^2", "derivative"),
     ("sin(x^2)", "derivative"),
     ("x^x", "derivative"),
-    ("x^2 + y^2 = 1", "derivative"),
+    ("3x-4=2", "derivative"),
+    ("2x+5=13", "derivative"),
+    ("x^2=25", "equation"),
+    ("x^2+5x+6=0", "equation"),
+    ("2(x+3)=10", "equation"),
+    ("5=x^2+4x", "equation"),
 ]
 
 EDGE_CASES: list[str] = [
