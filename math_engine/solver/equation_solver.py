@@ -1,9 +1,12 @@
 """Concrete solver for equations.
 
-Implements the first concrete mathematical solver: :class:`EquationSolver`
-recognizes equality expressions and returns their solution set using SymPy.
-It performs no step-by-step reasoning; intermediate steps are intentionally
-left empty for future phases to fill.
+:class:`EquationSolver` recognizes equality expressions and returns their
+solution set using SymPy. For simple linear equations in one variable it also
+runs the shared rule pipeline (expand, multiply-through, move variable terms,
+move constants, divide the coefficient) so the canonical ``/solve`` path
+produces step-by-step reasoning exactly like the quadratic and derivative
+solvers do. The authoritative ``final_answer`` still comes from SymPy's
+``solve``; the rules only add the explanatory steps.
 """
 
 from __future__ import annotations
@@ -11,10 +14,21 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from sympy import Add, Basic, Poly, expand, solve
+from sympy import Add, Basic, Eq, Poly, expand, latex, solve
 from sympy.polys.polyerrors import PolynomialError
 
-from ..models import Expression, Solution, TaskType
+from ..models import Expression, Solution, Step, TaskType
+from ..reasoning.rules import (
+    DivideCoefficientRule,
+    ExpandRule,
+    MoveConstantRule,
+    MoveVariableRule,
+    MultiplyBothSidesRule,
+    RuleEngine,
+    UnsupportedExpressionError,
+)
+from ..reasoning.rules.base_rule import _single_symbol, make_step
+from ..reasoning.rules.rule_exceptions import RuleError
 from .base_solver import BaseSolver
 from .solver_exceptions import SolverError
 from .solver_factory import default_factory
@@ -26,7 +40,8 @@ class EquationSolver(BaseSolver):
 
     Given a classified ``EQUATION`` expression, extracts the embedded SymPy
     equality, solves it symbolically, and returns a :class:`Solution` whose
-    ``final_answer`` holds the rendered solution set.
+    ``final_answer`` holds the rendered solution set. Linear equations are
+    additionally explained step by step through the shared rule pipeline.
 
     By default this solver registers itself against the process-wide
     :data:`default_factory` when the module is imported.
@@ -45,8 +60,9 @@ class EquationSolver(BaseSolver):
         Returns
         -------
         Solution
-            A solution with an empty ``steps`` tuple, the solved answer in
-            ``final_answer``, and the raw SymPy result in ``metadata``.
+            A solution with the solved answer in ``final_answer``, the raw
+            SymPy result in ``metadata``, and step-by-step reasoning for
+            supported linear equations.
 
         Raises
         ------
@@ -59,10 +75,73 @@ class EquationSolver(BaseSolver):
         result = self._solve_equation(expr)
         return Solution(
             expression=problem,
-            steps=(),
+            steps=self._linear_steps(problem, expr),
             final_answer=self._render_result(result),
             metadata={"solutions": result},
         )
+
+    def _linear_steps(self, problem: Expression, expr: Basic) -> tuple[Step, ...]:
+        """Build step-by-step reasoning for a supported linear equation.
+
+        Runs the same ordered rule pipeline the reasoning layer uses for
+        linear equations and bookends the produced steps with the opening
+        "present the equation" step and the closing "final answer" step.
+
+        Equations that are not a simple single-variable linear equation return
+        an empty tuple, preserving the historical no-steps behaviour.
+
+        Parameters
+        ----------
+        problem :
+            The expression being solved, used for the opening step.
+        expr :
+            The SymPy equality to explain.
+
+        Returns
+        -------
+        tuple[Step, ...]
+            The ordered reasoning steps, or an empty tuple when the equation
+            is outside the linear rule pipeline's scope.
+        """
+        engine = RuleEngine(
+            [
+                ExpandRule(),
+                MultiplyBothSidesRule(),
+                MoveVariableRule(),
+                MoveConstantRule(),
+                DivideCoefficientRule(),
+            ]
+        )
+        try:
+            generated = engine.run(expr)
+        except RuleError:
+            return ()
+
+        original_latex = problem.raw_latex or latex(expr)
+        steps: list[Step] = [
+            make_step(
+                "Present the equation",
+                f"Solve the linear equation {original_latex}.",
+                latex(expr),
+                "present",
+            )
+        ]
+        steps.extend(generated)
+
+        try:
+            symbol = _single_symbol(engine.final_expression)
+            final_latex = latex(Eq(symbol, engine.final_expression.rhs))
+        except (UnsupportedExpressionError, AttributeError):
+            return tuple(steps)
+        steps.append(
+            make_step(
+                "Final answer",
+                f"The solution of the equation is {final_latex}.",
+                final_latex,
+                "answer",
+            )
+        )
+        return tuple(steps)
 
     def _extract_expression(self, problem: Expression) -> Basic:
         """Return the SymPy expression from the model.

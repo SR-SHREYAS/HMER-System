@@ -69,35 +69,6 @@ function generateLatex(sequence) {
   MathJax.typesetPromise([latexContainer]);
 }
 
-// Build the task, answer and step DOM from the backend response, then let
-// animation.js progressively reveal it.
-function renderPredictionDetails(data) {
-  const task = String(data.task || 'unknown');
-  const isKnownTask = task.toLowerCase() !== 'unknown';
-
-  const taskNode = document.getElementById('taskResult');
-  const answerSection = document.getElementById('answerSection');
-  const answerResult = document.getElementById('answerResult');
-  const stepsSection = document.getElementById('stepsSection');
-  const stepsContainer = document.getElementById('stepsResult');
-
-  taskNode.textContent = task.charAt(0).toUpperCase() + task.slice(1);
-
-  const hasAnswer = data.answer != null && String(data.answer).trim() !== '';
-  answerResult.textContent = hasAnswer ? data.answer : '';
-
-  const stepNodes = isKnownTask ? buildStepNodes(data.steps || [], stepsContainer) : [];
-
-  playSolutionAnimation({
-    taskNode: taskNode,
-    answerSection: answerSection,
-    stepsSection: stepsSection,
-    stepNodes: stepNodes,
-    showSteps: isKnownTask,
-    showAnswer: isKnownTask && hasAnswer
-  });
-}
-
 function buildStepNodes(steps, container) {
   container.innerHTML = '';
   if (!steps || steps.length === 0) {

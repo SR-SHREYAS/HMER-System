@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import re
 
-from sympy import Basic
+from sympy import Basic, Mul, Symbol
+from sympy.core.function import AppliedUndef
 from sympy.parsing.latex import parse_latex
 from sympy.parsing.latex.errors import LaTeXParsingError
 
@@ -60,6 +61,7 @@ def latex_to_expression(latex: str) -> Basic:
     """
     normalized = _normalize_latex(latex)
     parsed = _parse_expression(normalized)
+    parsed = _resolve_implicit_multiplication(parsed)
     return _validate_expression(parsed)
 
 
@@ -104,6 +106,37 @@ def _parse_expression(normalized: str) -> Basic:
         raise InvalidLatexError(
             f"Unexpected failure while parsing LaTeX {normalized!r}: {exc}"
         ) from exc
+
+
+def _resolve_implicit_multiplication(parsed: Basic) -> Basic:
+    """Rewrite juxtaposed multiplication that SymPy misparses as a call.
+
+    SymPy's LaTeX parser reads ``x(x - 2)`` as the undefined function call
+    ``Function('x')(x - 2)`` instead of the product ``x*(x - 2)``. A bare
+    symbol directly followed by a parenthesis is far more likely to mean
+    implicit multiplication in handwritten math, so every ``AppliedUndef``
+    whose name is also a free symbol of the expression is rewritten into a
+    product.
+
+    Real mathematical functions (``\\sin``, ``\\cos``, ``\\log``, ...) are
+    parsed as concrete SymPy ``Function`` objects, never as ``AppliedUndef``,
+    so they are left untouched. Undefined function names that never appear as
+    free symbols (for example ``f`` in ``f(x)``) are also preserved, so an
+    ordinary function call keeps its meaning.
+    """
+    if not parsed.has(AppliedUndef):
+        return parsed
+    free_names = {symbol.name for symbol in parsed.free_symbols}
+
+    def _is_juxtaposed(node: Basic) -> bool:
+        return (
+            isinstance(node, AppliedUndef) and node.func.name in free_names
+        )
+
+    def _to_product(node: AppliedUndef) -> Basic:
+        return Mul(Symbol(node.func.name), *node.args)
+
+    return parsed.replace(_is_juxtaposed, _to_product)
 
 
 def _validate_expression(parsed: object) -> Basic:
