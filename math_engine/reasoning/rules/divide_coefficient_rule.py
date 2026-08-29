@@ -41,10 +41,20 @@ class DivideCoefficientRule(BaseRule):
         value = simplify(rhs / coefficient)
         updated = Eq(symbol, value)
         step = make_step(
-            "Simplify the coefficient",
-            "Divide both sides by the coefficient of the variable to leave "
-            "the variable alone on the left.",
-            latex(updated),
+            "Divide by the coefficient to solve for the variable",
+            f"Divide both sides by the coefficient {coefficient} to isolate "
+            "the variable.",
+            self._format_divide_latex(expression, updated, coefficient, rhs),
             "divide",
         )
         return updated, step
+
+    def _format_divide_latex(self, original, updated, coefficient, rhs):
+        """Format the division step showing the division on both sides."""
+        return (
+            "\\begin{aligned}\n"
+            f"{latex(original)} \\\\\n"
+            f"\\div {latex(coefficient)} \\\\\n"
+            f"{latex(updated)}\n"
+            "\\end{aligned}"
+        )

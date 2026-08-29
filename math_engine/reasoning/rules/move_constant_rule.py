@@ -41,11 +41,29 @@ class MoveConstantRule(BaseRule):
         lhs_constant = simplify(expression.lhs - coefficient * symbol)
         rhs = simplify(-constant)
         updated = Eq(coefficient * symbol, rhs)
+        
+        # Format the operation nicely: if constant is negative, we add its absolute value
+        if lhs_constant < 0:
+            operation_desc = f"Add {latex(-lhs_constant)} to both sides"
+            operation_latex = f"+ {latex(-lhs_constant)}"
+        else:
+            operation_desc = f"Subtract {latex(lhs_constant)} from both sides"
+            operation_latex = f"- {latex(lhs_constant)}"
+        
         step = make_step(
-            "Isolate the variable term",
-            f"Move the constant term {latex(lhs_constant)} to the right-hand "
-            "side, applying the opposite operation to both sides.",
-            latex(updated),
+            "Move the constant term to the right-hand side",
+            f"{operation_desc} to isolate the variable term on the left.",
+            self._format_move_constant_latex(expression, updated, operation_latex, lhs_constant),
             "isolate",
         )
         return updated, step
+
+    def _format_move_constant_latex(self, original, updated, operation_latex, constant_term):
+        """Format the constant moving step showing the operation on both sides."""
+        return (
+            "\\begin{aligned}\n"
+            f"{latex(original)} \\\\\n"
+            f"{operation_latex} \\\\\n"
+            f"{latex(updated)}\n"
+            "\\end{aligned}"
+        )

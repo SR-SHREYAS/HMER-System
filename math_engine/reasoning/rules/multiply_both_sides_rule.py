@@ -51,9 +51,20 @@ class MultiplyBothSidesRule(BaseRule):
         new_rhs = simplify(expression.rhs * lcd)
         updated = Eq(new_lhs, new_rhs)
         step = make_step(
-            "Multiply both sides",
-            f"Multiply both sides by {lcd} to eliminate the fractions.",
-            latex(updated),
+            "Multiply both sides to clear fractions",
+            f"Multiply both sides by the least common denominator ({lcd}) "
+            "to eliminate fractions.",
+            self._format_multiplication_latex(expression, updated, lcd),
             "multiply_both_sides",
         )
         return updated, step
+
+    def _format_multiplication_latex(self, original, updated, lcd):
+        """Format the multiplication step showing the LCD applied to both sides."""
+        return (
+            "\\begin{aligned}\n"
+            f"{latex(original)} \\\\\n"
+            f"\\times {latex(lcd)} \\\\\n"
+            f"{latex(updated)}\n"
+            "\\end{aligned}"
+        )

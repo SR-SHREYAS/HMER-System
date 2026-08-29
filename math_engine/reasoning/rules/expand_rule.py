@@ -42,13 +42,22 @@ class ExpandRule(BaseRule):
         self._ensure_applicable(expression)
         expanded = expand(expression)
         step = make_step(
-            "Expand the parentheses",
-            "Expand the parentheses using the distributive law to remove the "
-            "brackets from the equation.",
-            latex(expanded),
+            "Expand the brackets",
+            "Distribute the multiplier across each term inside the parentheses "
+            "using the distributive law: a(b + c) = ab + ac.",
+            self._format_expansion_latex(expression, expanded),
             "expand",
         )
         return expanded, step
+
+    def _format_expansion_latex(self, original, expanded):
+        """Format the expansion step showing the distributive law application."""
+        return (
+            "\\begin{aligned}\n"
+            f"{latex(original)} \\\\\n"
+            f"{latex(expanded)}\n"
+            "\\end{aligned}"
+        )
 
     def _has_expandable_product(self, expression) -> bool:
         """Return whether any subterm is a product containing a sum.
