@@ -90,18 +90,36 @@ class ExpLogRule(BaseRule):
         inner_prime = ExpLogRule._differentiate(inner, variable)
         if expression.func is exp:
             outer_prime = exp(inner)
+            func_name = "exponential"
+            formula = "\\frac{d}{dx} e^u = e^u \\cdot u'"
         elif expression.func is log:
             outer_prime = Pow(inner, Integer(-1), evaluate=False)
+            func_name = "natural logarithm"
+            formula = "\\frac{d}{dx} \\ln(u) = \\frac{1}{u} \\cdot u'"
         else:
             raise UnsupportedExpressionError(
                 "ExpLogRule only supports exp and log."
             )
 
         result = Mul(outer_prime, inner_prime, evaluate=False)
+
+        # Educational content: show exp/log identity, inner function, chain rule application
+        substitution = (
+            f"\\frac{{d}}{{d{latex(variable)}}} {latex(expression.func.__name__)}\\left({latex(inner)}\\right) = "
+            f"{latex(outer_prime)} \\cdot {latex(inner_prime)}"
+        )
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
-            "Differentiate using exponential/logarithmic rule",
-            "Differentiate using exponential/logarithmic rule.",
-            latex(result),
+            f"Differentiate {func_name}",
+            f"The derivative of {func_name}(u) is {formula.split('=')[1].strip()}. "
+            f"Here u = {latex(inner)}, so the derivative is {latex(outer_prime)} * {latex(inner_prime)} = {latex(result)}.",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"\\frac{{d}}{{d{latex(variable)}}} {latex(expression.func.__name__)}\\left({latex(inner)}\\right) = "
+            f"{latex(outer_prime)} \\cdot {latex(inner_prime)} \\\\\n"
+            f"= {latex(result)}\n"
+            "\\end{aligned}",
             "exp_log_rule",
         )
         step.metadata["inner"] = inner

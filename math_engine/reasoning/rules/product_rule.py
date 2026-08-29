@@ -95,8 +95,10 @@ class ProductRule(BaseRule):
 
         factors = list(expression.args)
         terms = []
+        factor_derivatives = []
         for index, factor in enumerate(factors):
             factor_derivative = ProductRule._differentiate(factor, variable)
+            factor_derivatives.append(factor_derivative)
             others = Mul(*[
                 other for other_index, other in enumerate(factors)
                 if other_index != index
@@ -105,13 +107,43 @@ class ProductRule(BaseRule):
                 Mul(factor_derivative, others, evaluate=False)
             )
         result = Add(*terms, evaluate=False)
+
+        # Educational content: show product rule formula, factors, and derivatives
+        formula = "\\frac{d}{dx} (f \\cdot g) = f' \\cdot g + f \\cdot g'"
+        factors_latex = " \\cdot ".join(latex(f) for f in factors)
+        
+        # Show each term: f_i' * (product of other factors)
+        term_explanations = []
+        for i, (factor, f_prime) in enumerate(zip(factors, factor_derivatives)):
+            others = [f for j, f in enumerate(factors) if j != i]
+            if len(others) == 1:
+                others_latex = latex(others[0])
+            else:
+                others_latex = " \\cdot ".join(latex(o) for o in others)
+            # Wrap in parentheses if the other factors are more than one or it's a compound expression
+            if len(others) > 1 or (len(others) == 1 and isinstance(others[0], (Add, Mul, Pow))):
+                others_latex = f"\\left({others_latex}\\right)"
+            term_explanations.append(f"{latex(f_prime)} \\cdot {others_latex}")
+        
+        substitution = (
+            f"\\frac{{d}}{{d{latex(variable)}}} ({factors_latex}) = "
+            + " + ".join(term_explanations)
+        )
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
             "Apply the product rule",
-            "Apply the product rule.",
-            latex(result),
+            f"The derivative of a product f*g is f'*g + f*g'. "
+            f"For {factors_latex}, differentiate each factor and multiply by the others.",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"{substitution} \\\\\n"
+            f"{evaluation}\n"
+            "\\end{aligned}",
             "product_rule",
         )
         step.metadata["factors"] = factors
+        step.metadata["factor_derivatives"] = factor_derivatives
         step.metadata["result"] = result
         return result, step
 

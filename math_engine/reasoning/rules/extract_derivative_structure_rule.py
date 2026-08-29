@@ -72,19 +72,21 @@ class ExtractDerivativeStructureRule(BaseRule):
         variables = tuple(expression.variables)
         order = len(variables)
 
+        if variables and all(var == variables[0] for var in variables):
+            variable = variables[0]
+        else:
+            variable = variables
+
         step = make_step(
             "Identify the function and variable of differentiation",
-            "Identify the function and variable of differentiation.",
-            "",
+            f"Differentiate {latex(expression.expr)} with respect to {latex(variable)} (order {order}).",
+            f"\\frac{{d^{order}}}{{d{latex(variable)}^{order}}} \\left({latex(expression.expr)}\\right)",
             "extract_derivative_structure",
         )
         step.metadata["expression"] = expression.expr
         step.metadata["variables"] = variables
         step.metadata["order"] = order
-        if variables and all(var == variables[0] for var in variables):
-            step.metadata["variable"] = variables[0]
-        else:
-            step.metadata["variable"] = variables
+        step.metadata["variable"] = variable
         return expression, step
 
 

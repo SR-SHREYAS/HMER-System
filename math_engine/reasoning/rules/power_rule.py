@@ -87,10 +87,27 @@ class PowerRule(BaseRule):
             )
 
         result = exponent * variable ** (exponent - 1)
+
+        # Educational content: show the power rule formula, substitution, and evaluation
+        if exponent == 1:
+            formula = "\\frac{d}{dx} x = 1"
+            substitution = f"\\frac{{d}}{{d{latex(variable)}}} {latex(variable)} = 1"
+        else:
+            formula = f"\\frac{{d}}{{dx}} x^{{{latex(exponent)}}} = {latex(exponent)} \\cdot x^{{{latex(exponent)} - 1}}"
+            substitution = f"\\frac{{d}}{{d{latex(variable)}}} {latex(expression)} = {latex(exponent)} \\cdot {latex(variable)}^{{{latex(exponent)} - 1}}"
+
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
             "Apply the power rule",
-            "Apply the power rule.",
-            "",
+            f"For {latex(variable)}^{{{latex(exponent)}}}, the power rule gives: "
+            f"d/dx(x^n) = n*x^(n-1). Here n = {latex(exponent)}, so the derivative is "
+            f"{latex(exponent)} * {latex(variable)}^{{{latex(exponent - 1)}}} = {latex(result)}.",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"{substitution} \\\\\n"
+            f"{evaluation}\n"
+            "\\end{aligned}",
             "power_rule",
         )
         step.metadata["base"] = variable

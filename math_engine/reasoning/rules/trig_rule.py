@@ -188,32 +188,56 @@ class TrigRule(BaseRule):
         function = expression.func
         if function is sin:
             outer_prime = cos(inner)
+            trig_name = "sine"
+            formula = "\\frac{d}{dx} \\sin(u) = \\cos(u) \\cdot u'"
         elif function is cos:
             outer_prime = Mul(Integer(-1), sin(inner), evaluate=False)
+            trig_name = "cosine"
+            formula = "\\frac{d}{dx} \\cos(u) = -\\sin(u) \\cdot u'"
         elif function is tan:
             outer_prime = sec(inner) ** 2
+            trig_name = "tangent"
+            formula = "\\frac{d}{dx} \\tan(u) = \\sec^2(u) \\cdot u'"
         elif function is sec:
             outer_prime = Mul(sec(inner), tan(inner), evaluate=False)
+            trig_name = "secant"
+            formula = "\\frac{d}{dx} \\sec(u) = \\sec(u) \\tan(u) \\cdot u'"
         elif function is cot:
             outer_prime = Mul(Integer(-1), csc(inner) ** 2, evaluate=False)
+            trig_name = "cotangent"
+            formula = "\\frac{d}{dx} \\cot(u) = -\\csc^2(u) \\cdot u'"
         elif function is csc:
             outer_prime = Mul(
                 Integer(-1),
                 Mul(csc(inner), cot(inner), evaluate=False),
                 evaluate=False,
             )
+            trig_name = "cosecant"
+            formula = "\\frac{d}{dx} \\csc(u) = -\\csc(u) \\cot(u) \\cdot u'"
         elif function is asin:
             outer_prime = 1 / sqrt(1 - inner**2)
+            trig_name = "arcsine"
+            formula = "\\frac{d}{dx} \\arcsin(u) = \\frac{1}{\\sqrt{1 - u^2}} \\cdot u'"
         elif function is acos:
             outer_prime = Mul(Integer(-1), 1 / sqrt(1 - inner**2), evaluate=False)
+            trig_name = "arccosine"
+            formula = "\\frac{d}{dx} \\arccos(u) = -\\frac{1}{\\sqrt{1 - u^2}} \\cdot u'"
         elif function is atan:
             outer_prime = 1 / (1 + inner**2)
+            trig_name = "arctangent"
+            formula = "\\frac{d}{dx} \\arctan(u) = \\frac{1}{1 + u^2} \\cdot u'"
         elif function is sinh:
             outer_prime = cosh(inner)
+            trig_name = "hyperbolic sine"
+            formula = "\\frac{d}{dx} \\sinh(u) = \\cosh(u) \\cdot u'"
         elif function is cosh:
             outer_prime = sinh(inner)
+            trig_name = "hyperbolic cosine"
+            formula = "\\frac{d}{dx} \\cosh(u) = \\sinh(u) \\cdot u'"
         elif function is tanh:
             outer_prime = sech(inner) ** 2
+            trig_name = "hyperbolic tangent"
+            formula = "\\frac{d}{dx} \\tanh(u) = \\sech^2(u) \\cdot u'"
         else:
             raise UnsupportedExpressionError(
                 "TrigRule only supports sin, cos, tan, sec, cot, csc, "
@@ -221,14 +245,23 @@ class TrigRule(BaseRule):
             )
 
         result = Mul(outer_prime, inner_prime, evaluate=False)
-        if function in (tan, asin, acos, atan, sinh, cosh, tanh):
-            description = "Apply trigonometric differentiation rule."
-        else:
-            description = "Differentiate using trigonometric rule."
+
+        # Educational content: show trig identity, inner function, chain rule application
+        substitution = (
+            f"\\frac{{d}}{{d{latex(variable)}}} {latex(function.__name__)}\\left({latex(inner)}\\right) = "
+            f"{latex(outer_prime)} \\cdot {latex(inner_prime)}"
+        )
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
-            "Differentiate using trigonometric rule",
-            description,
-            latex(result),
+            f"Differentiate {trig_name}",
+            f"The derivative of {trig_name}(u) is {formula.split('=')[1].strip()}. "
+            f"Here u = {latex(inner)}, so the derivative is {latex(outer_prime)} * {latex(inner_prime)} = {latex(result)}.",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"{substitution} \\\\\n"
+            f"{evaluation}\n"
+            "\\end{aligned}",
             "trigonometric_rule",
         )
         step.metadata["function"] = function.__name__

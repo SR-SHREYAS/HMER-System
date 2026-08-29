@@ -86,10 +86,25 @@ class SumRule(BaseRule):
             SumRule._differentiate(term, variable) for term in expression.args
         ]
         result = Add(*terms, evaluate=False)
+
+        # Educational content: show sum rule formula and term-by-term breakdown
+        formula = "\\frac{d}{dx} (f + g) = \\frac{df}{dx} + \\frac{dg}{dx}"
+        terms_latex = " + ".join(latex(term) for term in expression.args)
+        derivatives_latex = " + ".join(latex(term) for term in terms)
+        substitution = (
+            f"\\frac{{d}}{{d{latex(variable)}}} ({terms_latex}) = {derivatives_latex}"
+        )
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
             "Apply the sum rule",
-            "Apply the sum rule.",
-            latex(result),
+            f"The derivative of a sum is the sum of the derivatives. "
+            f"Differentiate each term: {terms_latex}.",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"{substitution} \\\\\n"
+            f"{evaluation}\n"
+            "\\end{aligned}",
             "sum_rule",
         )
         step.metadata["terms"] = terms

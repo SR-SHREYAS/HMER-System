@@ -200,15 +200,32 @@ def _to_problem(parsed: Any) -> Any:
     * An already-parsed ``Eq`` (from ``x^2 = 25``, ``3x - 4 = 2``) is passed
       through unchanged and is dispatched as :class:`TaskType.EQUATION` -- the
       existing :class:`EquationSolver` then routes linear vs quadratic.
+      *Exception*: if the equation contains both ``x`` and ``y`` (or the
+      preferred variable and a second symbol), it is treated as an implicit
+      differentiation problem and wrapped into a ``Derivative``.
     * An already-parsed ``Derivative`` (from ``\\frac{d}{dx} x^2``) is passed
       through unchanged and is dispatched as :class:`TaskType.DERIVATIVE`.
     * Any other bare expression (``x^2``, ``sin(x)``, ``x^x``) keeps the
       historical derivative API behavior and is wrapped into
       ``Derivative(expr, variable)``.
 
-    An equality is never wrapped into a derivative.
+    An equality is never wrapped into a derivative unless it is an implicit
+    differentiation problem.
     """
-    if isinstance(parsed, (Eq, Derivative)):
+    if isinstance(parsed, Derivative):
+        return parsed
+    if isinstance(parsed, Eq):
+        # Check if this is an implicit differentiation problem:
+        # an equation in x and y (or the preferred variable and another symbol).
+        free = parsed.free_symbols
+        for name in _PREFERRED_VARIABLES:
+            var = Symbol(name)
+            if var in free:
+                # Found the preferred variable; check if there's another symbol
+                others = free - {var}
+                if others:
+                    variable = _select_variable(parsed)
+                    return Derivative(parsed, variable)
         return parsed
     variable = _select_variable(parsed)
     return Derivative(parsed, variable)

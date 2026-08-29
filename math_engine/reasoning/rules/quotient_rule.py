@@ -105,10 +105,30 @@ class QuotientRule(BaseRule):
         )
         total = Add(positive, negative, evaluate=False)
         result = Mul(total, Pow(denominator, Integer(-2)), evaluate=False)
+
+        # Educational content: show quotient rule formula, substitution, and evaluation
+        formula = "\\frac{d}{dx} \\left(\\frac{f}{g}\\right) = \\frac{f' \\cdot g - f \\cdot g'}{g^2}"
+        
+        # Add parentheses around denominator if it's a compound expression
+        denom_latex = latex(denominator)
+        if isinstance(denominator, (Add, Mul, Pow)):
+            denom_latex = f"\\left({denom_latex}\\right)"
+        
+        substitution = (
+            f"\\frac{{d}}{{d{latex(variable)}}} \\left(\\frac{{{latex(numerator)}}}{{{denom_latex}}}\\right) = "
+            f"\\frac{{{latex(numerator_derivative)} \\cdot {denom_latex} - {latex(numerator)} \\cdot {latex(denominator_derivative)}}}{{{denom_latex}^2}}"
+        )
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
             "Apply the quotient rule",
-            "Apply the quotient rule.",
-            latex(result),
+            f"The derivative of a quotient f/g is (f'*g - f*g')/g^2. "
+            f"Here f = {latex(numerator)}, g = {latex(denominator)}.",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"{substitution} \\\\\n"
+            f"= {latex(result)}\n"
+            "\\end{aligned}",
             "quotient_rule",
         )
         step.metadata["numerator"] = numerator

@@ -1,6 +1,6 @@
 # Phase 29 -- Unified Engine Stress Report
 
-_Generated 2026-08-29T20:20:48_
+_Generated 2026-08-29T21:50:13_
 
 ## Linear
 

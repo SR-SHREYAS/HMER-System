@@ -120,14 +120,34 @@ class ImplicitDerivativeRule(BaseRule):
         result = solution[0]
         result = result.xreplace({y_function: y_symbol})
 
+        # Educational content: show implicit differentiation process
+        formula = "\\frac{dy}{dx} = -\\frac{\\partial F/\\partial x}{\\partial F/\\partial y} \\text{ where } F(x,y) = 0"
+        
+        # Show the differentiated equation
+        differentiated_latex = latex(differentiated)
+        equation_latex = latex(equation)
+        
+        substitution = (
+            f"\\frac{{d}}{{d{latex(variable)}}} \\left({latex(equation.lhs)} - {latex(equation.rhs)}\\right) = 0 \\\\\n"
+            f"{differentiated_latex} = 0 \\\\\n"
+            f"\\frac{{dy}}{{dx}} = {latex(result)}"
+        )
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
             "Apply implicit differentiation",
-            "Apply implicit differentiation.",
-            latex(result),
+            f"Differentiate both sides of {latex(equation)} with respect to {latex(variable)}, "
+            f"treating y as a function of x. Then solve for dy/dx.",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"{substitution} \\\\\n"
+            f"{evaluation}\n"
+            "\\end{aligned}",
             "implicit_derivative",
         )
         step.metadata["result"] = result
         step.metadata["equation"] = equation
+        step.metadata["differentiated"] = differentiated
         return result, step
 
 

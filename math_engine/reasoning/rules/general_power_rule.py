@@ -93,16 +93,34 @@ class GeneralPowerRule(BaseRule):
         inner_prime = GeneralPowerRule._differentiate(inner, variable)
 
         result = Mul(expression, inner_prime, evaluate=False)
+
+        # Educational content: show f^g = exp(g*ln f) transformation and differentiation
+        formula = "\\frac{d}{dx} f(x)^{g(x)} = f(x)^{g(x)} \\cdot \\left( \\ln f(x) \\cdot g'(x) + g(x) \\cdot \\frac{f'(x)}{f(x)} \\right)"
+        
+        substitution = (
+            f"\\frac{{d}}{{d{latex(variable)}}} {latex(base)}^{{{latex(exponent)}}} = "
+            f"{latex(expression)} \\cdot \\left( "
+            f"\\ln\\left({latex(base)}\\right) \\cdot {latex(GeneralPowerRule._differentiate(exponent, variable))} "
+            f"+ {latex(exponent)} \\cdot \\frac{{{latex(GeneralPowerRule._differentiate(base, variable))}}}{{{latex(base)}}} "
+            f"\\right)"
+        )
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
             "Differentiate using the general power rule",
-            "Rewrite f(x)**g(x) as exp(g(x)*ln(f(x))) and differentiate "
-            "the exponent.",
-            latex(result),
+            f"Rewrite f(x)^g(x) as exp(g(x)*ln(f(x))) and differentiate the exponent. "
+            f"Here f = {latex(base)}, g = {latex(exponent)}. "
+            f"The derivative is f^g * (g' * ln(f) + g * f'/f).",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"{substitution} \\\\\n"
+            f"= {latex(result)}\n"
+            "\\end{aligned}",
             "general_power_rule",
         )
         step.metadata["base"] = base
         step.metadata["exponent"] = exponent
-        step.metadata["inner"] = inner
+        step.metadata["inner"] = Mul(exponent, log(base), evaluate=False)
         step.metadata["inner_derivative"] = inner_prime
         step.metadata["result"] = result
         return result, step

@@ -96,7 +96,6 @@ class ChainRule(BaseRule):
         expression = structure["expression"]
         variable = structure["variable"]
 
-        outer = expression.base
         inner = expression.base
         outer_prime = ChainRule._outer_derivative(
             expression.exp, inner, variable
@@ -104,10 +103,27 @@ class ChainRule(BaseRule):
         inner_prime = ChainRule._differentiate(inner, variable)
 
         result = Mul(outer_prime, inner_prime, evaluate=False)
+
+        # Educational content: show chain rule formula, outer/inner functions, derivatives
+        formula = "\\frac{d}{dx} f(g(x)) = f'(g(x)) \\cdot g'(x)"
+        substitution = (
+            f"\\frac{{d}}{{d{latex(variable)}}} ({latex(inner)})^{{{latex(expression.exp)}}} = "
+            f"\\left({latex(expression.exp)} \\cdot ({latex(inner)})^{{{latex(expression.exp)} - 1}}\\right) "
+            f"\\cdot {latex(inner_prime)}"
+        )
+        evaluation = f"= {latex(result)}"
+
         step = make_step(
             "Apply the chain rule",
-            "Apply the chain rule.",
-            latex(result),
+            f"The chain rule: d/dx f(g(x)) = f'(g(x)) * g'(x). "
+            f"Here the outer function is u^{{{latex(expression.exp)}}} and the inner function is {latex(inner)}. "
+            f"The outer derivative is {latex(expression.exp)} * {latex(inner)}^{{{latex(expression.exp)} - 1}} "
+            f"and the inner derivative is {latex(inner_prime)}.",
+            "\\begin{aligned}\n"
+            f"{formula} \\\\\n"
+            f"{substitution} \\\\\n"
+            f"= {latex(result)}\n"
+            "\\end{aligned}",
             "chain_rule",
         )
         step.metadata["outer"] = expression

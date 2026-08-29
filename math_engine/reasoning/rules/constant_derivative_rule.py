@@ -11,7 +11,7 @@ expressions, never simplifies anything and never combines with other rules.
 
 from __future__ import annotations
 
-from sympy import Integer
+from sympy import Integer, latex
 
 from ...models import Step
 from .base_rule import BaseRule, make_step
@@ -74,8 +74,11 @@ class ConstantDerivativeRule(BaseRule):
         result = Integer(0)
         step = make_step(
             "The derivative of a constant is zero",
-            "The derivative of a constant is zero.",
-            "0",
+            f"The derivative of a constant with respect to {latex(variable)} is zero: "
+            f"d/dx(c) = 0 for any constant c.",
+            "\\begin{aligned}\n"
+            f"\\frac{{d}}{{d{latex(variable)}}} \\left({latex(expression)}\\right) = 0\n"
+            "\\end{aligned}",
             "constant_rule",
         )
         step.metadata["result"] = result

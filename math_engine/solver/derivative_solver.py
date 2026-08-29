@@ -149,8 +149,8 @@ class DerivativeSolver(BaseSolver):
             for index, value in enumerate(series):
                 ordinal = _ordinal(index + 1)
                 iteration_step = make_step(
-                    f"{ordinal} derivative",
-                    f"Differentiate {ordinal.lower()}.",
+                    f"{ordinal} derivative (implicit)",
+                    f"Compute the {ordinal.lower()} derivative via implicit differentiation.",
                     latex(value),
                     "nth_derivative",
                 )
@@ -177,7 +177,7 @@ class DerivativeSolver(BaseSolver):
                 ordinal = _ordinal(index + 1)
                 iteration_step = make_step(
                     f"{ordinal} derivative",
-                    f"Differentiate {ordinal.lower()}.",
+                    f"Compute the {ordinal.lower()} derivative.",
                     latex(result),
                     "nth_derivative",
                 )
