@@ -8,6 +8,20 @@ const MODEL_BG = 'black';
 let solving = false;
 
 
+function getTaskLabel(taskType) {
+  switch (taskType) {
+    case 'equation':
+      return 'Linear Equation';
+    case 'quadratic_equation':
+      return 'Quadratic Equation';
+    case 'derivative':
+      return 'Differentiation';
+    default:
+      return taskType ? taskType.charAt(0).toUpperCase() + taskType.slice(1) : 'Unknown';
+  }
+}
+
+
 document.getElementById('imageInput').addEventListener('change', function(event) {
   const file = event.target.files[0];
   const preview = document.getElementById('previewImage');
@@ -163,10 +177,11 @@ function solveLatex(latex) {
     solving = false;
     status.classList.add('section-hidden');
     restoreSendButton();
-    taskNode.textContent = 'Derivative';
     if (data.success) {
+      taskNode.textContent = getTaskLabel(data.task);
       renderSolveSuccess(data);
     } else {
+      taskNode.textContent = 'Error';
       renderSolveError(data.error || 'Failed to solve expression');
     }
   })
@@ -175,7 +190,7 @@ function solveLatex(latex) {
     solving = false;
     status.classList.add('section-hidden');
     restoreSendButton();
-    taskNode.textContent = 'Derivative';
+    taskNode.textContent = 'Error';
     renderSolveError('Network error while solving: ' + err.message);
   });
 }

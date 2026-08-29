@@ -248,17 +248,30 @@ def _select_variable(expression: Any) -> Symbol:
 def _solution_response(classified: Expression, solution: Any) -> dict[str, Any]:
     """Serialize a classified expression and its solution to the response."""
     verification = dict(solution.metadata.get("verification", {}))
+    # Determine the actual task type: quadratic equations are classified as EQUATION
+    # by the dispatcher but have a 'classification' field in solution metadata.
+    task_value = classified.task.value if classified.task else None
+    if task_value == "equation" and "classification" in solution.metadata:
+        task_value = "quadratic_equation"
+    
+    # Verification is only available for derivatives; for other tasks it's not applicable.
+    has_verification = bool(verification and verification.get("passed") is not None)
+    verification_payload: dict[str, Any] = {
+        "method": verification.get("method", "symbolic"),
+        "samples": verification.get("samples", 0),
+    }
+    if has_verification:
+        verification_payload["passed"] = bool(verification.get("passed", False))
+    else:
+        verification_payload["passed"] = None
+    
     return {
         "success": True,
         "result": solution.final_answer,
         "input": classified.raw_latex,
-        "task": classified.task.value if classified.task else None,
+        "task": task_value,
         "steps": [_serialize_step(step) for step in solution.steps],
-        "verification": {
-            "passed": bool(verification.get("passed", False)),
-            "method": verification.get("method", "symbolic"),
-            "samples": verification.get("samples", 0),
-        },
+        "verification": verification_payload,
         "error": None,
     }
 

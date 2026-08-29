@@ -178,8 +178,8 @@ def check_educational_steps(case_name, response, coefficients, discriminant,
 
     if not response.get("success"):
         return [f"request failed: {response.get('error')!r}"]
-    if response.get("task") != "equation":
-        fail(f"task={response.get('task')!r}, expected 'equation'")
+    if response.get("task") != "quadratic_equation":
+        fail(f"task={response.get('task')!r}, expected 'quadratic_equation'")
 
     steps = response.get("steps", [])
     if len(steps) != 5:
