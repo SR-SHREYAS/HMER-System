@@ -81,14 +81,28 @@ class QuadraticFormulaRule(BaseRule):
         root_plus = (-b + sqrt(discriminant)) / (2 * a)
         root_minus = (-b - sqrt(discriminant)) / (2 * a)
 
+        formula = "x &= \\frac{-b \\pm \\sqrt{D}}{2a}"
+        substitution = (
+            f"x &= \\frac{{-\\left({latex(b)}\\right) "
+            f"\\pm \\sqrt{{{latex(discriminant)}}}}}{{2\\left({latex(a)}\\right)}}"
+        )
+        evaluation = (
+            f"x &= \\frac{{{latex(-b)} \\pm {latex(sqrt(discriminant))}}}"
+            f"{{{latex(2 * a)}}}"
+        )
         step = make_step(
             "Apply the quadratic formula",
             "Apply the quadratic formula.",
-            "",
+            "\\begin{aligned}\n"
+            + " \\\\\n".join((formula, substitution, evaluation))
+            + "\n\\end{aligned}",
             "quadratic_formula",
         )
         step.metadata["roots"] = (root_plus, root_minus)
         step.metadata["roots_latex"] = (latex(root_plus), latex(root_minus))
+        step.metadata["formula"] = formula.replace("&= ", "= ")
+        step.metadata["substitution"] = substitution.replace("&= ", "= ")
+        step.metadata["evaluation"] = evaluation.replace("&= ", "= ")
         return discriminant, step
 
     @staticmethod

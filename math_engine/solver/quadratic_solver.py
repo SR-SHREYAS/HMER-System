@@ -3,8 +3,8 @@
 :class:`QuadraticSolver` solves quadratic equations in two stages. It first
 applies the :class:`NormalizeQuadraticRule` to rearrange the equation into the
 standard quadratic form ``ax**2 + bx + c = 0``, then applies the
-:class:`ExtractQuadraticCoefficientsRule` to read the coefficients ``a``, ``b``
-and ``c`` off the normalized form, then applies the
+:class:`ExtractQuadraticCoefficientsRule` to read the coefficients ``a``,
+``b`` and ``c`` off the normalized form, then applies the
 :class:`ComputeDiscriminantRule` to calculate ``Delta = b**2 - 4*a*c``, applies
 the :class:`ClassifyQuadraticRootsRule` to determine how many real roots the
 equation has, applies the :class:`QuadraticFormulaRule` to compute the raw
@@ -14,13 +14,22 @@ symbolic roots with the quadratic formula, and simplifies them with the
 from the simplified roots in the solution metadata. No additional mathematics
 is performed after simplification. The solver registers against the
 process-wide factory under the :class:`TaskType.QUADRATIC_EQUATION` task.
+
+The solution carries five educational steps: standard form, coefficients,
+discriminant (formula, substitution, result), root classification (all three
+discriminant cases plus the applicable one) and the quadratic formula
+(formula, substitution, evaluation, simplified roots). The root
+simplification is presented as part of the formula step rather than as a
+separate step.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from sympy import Basic, latex
 
-from ..models import Expression, Solution, TaskType
+from ..models import Expression, Solution, Step, TaskType
 from ..reasoning.rules import (
     ClassifyQuadraticRootsRule,
     ComputeDiscriminantRule,
@@ -81,10 +90,9 @@ class QuadraticSolver(BaseSolver):
         a, b, _ = coefficients
         formula_values = {"a": a, "b": b, "discriminant": discriminant}
         _, formula_step = QuadraticFormulaRule().apply(formula_values)
-        _, simplify_step = SimplifyQuadraticRootsRule().apply(
+        simplified_roots, simplify_step = SimplifyQuadraticRootsRule().apply(
             formula_step.metadata["roots"]
         )
-        simplified_roots = simplify_step.metadata["roots"]
         classification = classify_step.metadata["classification"]
 
         steps = (
@@ -92,8 +100,13 @@ class QuadraticSolver(BaseSolver):
             extract_step,
             discriminant_step,
             classify_step,
-            formula_step,
-            simplify_step,
+            self._merge_formula_step(
+                formula_step,
+                simplify_step,
+                variable,
+                simplified_roots,
+                classification,
+            ),
         )
         metadata = {
             "normalized": normalized,
@@ -112,6 +125,77 @@ class QuadraticSolver(BaseSolver):
                 variable, simplified_roots, classification
             ),
             metadata=metadata,
+        )
+
+    @staticmethod
+    def _merge_formula_step(
+        formula_step: Step,
+        simplify_step: Step,
+        variable,
+        simplified_roots,
+        classification,
+    ) -> Step:
+        """Fold the simplified roots into the quadratic-formula step.
+
+        The formula rule already renders the general formula, the substituted
+        values and the evaluated expression; this only appends the resulting
+        simplified roots as the final line of the same step so the learner can
+        follow formula -> substitution -> simplification -> roots in one place.
+
+        Parameters
+        ----------
+        formula_step :
+            The step produced by :class:`QuadraticFormulaRule`.
+        simplify_step :
+            The step produced by :class:`SimplifyQuadraticRootsRule`, consumed
+            for its simplified-roots metadata only.
+        variable :
+            The unknown symbol of the equation.
+        simplified_roots :
+            The simplified ``(root_1, root_2)`` symbolic roots.
+        classification :
+            The root classification produced earlier.
+
+        Returns
+        -------
+        Step
+            A copy of the formula step whose rendered math ends with the
+            individual simplified roots and whose metadata carries the
+            simplified roots.
+        """
+        roots_line = QuadraticSolver._roots_latex(
+            variable, simplified_roots, classification
+        )
+        rendered = formula_step.latex
+        closing = "\\end{aligned}"
+        if rendered.endswith("\n" + closing):
+            rendered = (
+                rendered[: -len(closing) - 1]
+                + f"\\\\\n{roots_line}\n{closing}"
+            )
+        elif closing in rendered:
+            rendered = rendered.replace(
+                closing, f"\\\\\n{roots_line}\n{closing}", 1
+            )
+        else:
+            rendered = f"{rendered} \\;\\; {roots_line}"
+        metadata = dict(formula_step.metadata)
+        metadata["simplified_roots"] = simplify_step.metadata["roots"]
+        return replace(formula_step, latex=rendered, metadata=metadata)
+
+    @staticmethod
+    def _roots_latex(variable, roots, classification) -> str:
+        """Render the simplified roots as the closing line of the formula step.
+
+        Two distinct or complex roots are listed as ``x_1`` and ``x_2``; a
+        repeated root is listed once as ``x``. Presentation only -- the final
+        answer is rendered separately by :meth:`_render_answer`.
+        """
+        if classification == "one_repeated_real":
+            return f"{latex(variable)} = {latex(roots[0])}"
+        return (
+            f"{latex(variable)}_{{1}} = {latex(roots[0])}, \\quad "
+            f"{latex(variable)}_{{2}} = {latex(roots[1])}"
         )
 
     def _extract_expression(self, problem: Expression) -> Basic:

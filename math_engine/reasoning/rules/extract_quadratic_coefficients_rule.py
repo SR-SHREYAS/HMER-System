@@ -102,7 +102,7 @@ class ExtractQuadraticCoefficientsRule(BaseRule):
         step = make_step(
             "Identify the quadratic coefficients",
             "Identify the quadratic coefficients.",
-            latex(expression),
+            f"a = {latex(a)},\\quad b = {latex(b)},\\quad c = {latex(c)}",
             "extract_coefficients",
         )
         step.metadata["coefficients"] = (a, b, c)

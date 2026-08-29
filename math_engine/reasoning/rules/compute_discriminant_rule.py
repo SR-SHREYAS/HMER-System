@@ -77,14 +77,24 @@ class ComputeDiscriminantRule(BaseRule):
         calculation = b**2 - 4 * a * c
         discriminant = calculation
 
+        formula = "D &= b^{2} - 4ac"
+        substitution = (
+            f"D &= \\left({latex(b)}\\right)^{{2}} "
+            f"- 4\\left({latex(a)}\\right)\\left({latex(c)}\\right)"
+        )
+        result = f"D &= {latex(discriminant)}"
         step = make_step(
             "Compute the discriminant",
-            "Compute the discriminant.",
-            latex(discriminant),
+            "Compute the discriminant using D = b\u00b2 - 4ac.",
+            "\\begin{aligned}\n"
+            + " \\\\\n".join((formula, substitution, result))
+            + "\n\\end{aligned}",
             "compute_discriminant",
         )
         step.metadata["discriminant"] = discriminant
         step.metadata["calculation"] = latex(calculation)
+        step.metadata["formula"] = formula.replace("&= ", "= ")
+        step.metadata["substitution"] = substitution.replace("&= ", "= ")
         return discriminant, step
 
 
