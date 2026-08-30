@@ -1,293 +1,399 @@
-"""Verification infrastructure for transformation results.
+"""Domain-neutral mathematical verification infrastructure.
 
-This module provides the verification infrastructure for checking that
-transformation results are valid solutions to the original problem.
+This module provides a reusable mechanism for checking whether a *candidate*
+solution satisfies a *original* mathematical equation/expression, independent of
+any particular solver or capability (linear, quadratic, differentiation, etc.).
+
+Verification operates on SymPy objects only -- never on LaTeX strings, rendered
+text, or variable-name assumptions. It distinguishes three outcomes:
+
+* ``VALID``         -- exact symbolic substitution proves the candidate solves
+                       the original equation (``simplify(LHS - RHS) == 0``).
+* ``INVALID``       -- the candidate provably does **not** solve the original
+                       equation (including extraneous and domain-invalid cases).
+* ``INDETERMINATE`` -- the symbolic structure cannot safely establish validity
+                       (e.g. an undecidable domain condition). Never silently
+                       coerced to ``VALID``.
+
+This is a *pure* verification layer. It does not solve, transform, or generate
+candidates, and it must not be confused with the existing
+:class:`DerivativeSolver` verification (which remains untouched).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Iterable, Mapping
 
-from sympy import Basic, simplify, solve, Eq, sympify
+from sympy import Eq, S, simplify, sympify
 
-from .base import (
-    TransformationResult,
-    Condition,
-    Branch,
-    BranchSet,
-    VerificationRequirement,
-)
+from .base import Branch, TransformationResult
 
 
 class VerificationStatus(str, Enum):
-    """Result of a verification check."""
+    """Three-valued outcome of a verification check.
+
+    ``passed`` corresponds to VALID, ``failed`` to INVALID, and
+    ``indeterminate`` to INDETERMINATE.
+    """
 
     PASSED = "passed"
-    """Verification passed - candidate is a valid solution."""
-
     FAILED = "failed"
-    """Verification failed - candidate is not a valid solution."""
-
     INDETERMINATE = "indeterminate"
-    """Verification could not determine validity (e.g., symbolic complexity)."""
 
 
 class VerificationMethod(str, Enum):
-    """Method used for verification."""
+    """How a verification decision was reached."""
 
     SYMBOLIC = "symbolic"
-    """Exact symbolic verification (simplify difference == 0)."""
+    """Exact symbolic check (``simplify(LHS - RHS) == 0``)."""
 
     NUMERIC = "numeric"
-    """Numeric verification at sample points."""
-
-    SYMBOLIC_NUMERIC = "symbolic+numeric"
-    """Symbolic check first, then numeric fallback."""
+    """Numeric evaluation at substituted values (fallback only)."""
 
 
 @dataclass(frozen=True, slots=True)
 class VerificationResult:
-    """Result of a verification check."""
+    """Structured result of a single verification check."""
 
     status: VerificationStatus
-    """Whether verification passed, failed, or was indeterminate."""
+    """Whether the candidate is valid, invalid, or indeterminate."""
 
     method: VerificationMethod
-    """Method used for verification."""
+    """The method that produced the decision."""
+
+    candidate: object = None
+    """The candidate that was verified."""
+
+    substituted: object = None
+    """The substitution applied to the original equation (e.g. ``{x: 5}``)."""
+
+    conditions_checked: tuple = field(default_factory=tuple)
+    """Conditions (SymPy relationals or ``Condition``) that were evaluated."""
+
+    failed_conditions: tuple = field(default_factory=tuple)
+    """Conditions the candidate violated."""
+
+    extraneous: bool = False
+    """True when the candidate is satisfiable by a *transformed* equation but
+    provably fails the *original* equation."""
 
     message: str = ""
-    """Human-readable explanation of the result."""
-
-    details: dict = field(default_factory=dict)
-    """Additional details about the verification."""
+    """Human-readable explanation of the outcome."""
 
     @property
-    def passed(self) -> bool:
-        return self.status == "passed"
+    def valid(self) -> bool:
+        return self.status is VerificationStatus.PASSED
+
+    @property
+    def invalid(self) -> bool:
+        return self.status is VerificationStatus.FAILED
+
+    @property
+    def indeterminate(self) -> bool:
+        return self.status is VerificationStatus.INDETERMINATE
 
 
-@dataclass(frozen=True, slots=True)
-class VerificationContext:
-    """Context for verification of transformation results.
+def _candidate_substitution(candidate, variable) -> Mapping:
+    """Normalize a candidate into a ``{symbol: value}`` substitution mapping.
 
-    Contains the original problem and any information needed to verify
-    that a candidate solution is valid.
+    Accepts:
+
+    * a bare value (``5``, ``-5``, ``sqrt(2)``) -- requires a single ``variable``
+      to be supplied,
+    * an equality ``Eq(y, 3)`` -- the LHS is used as the symbol,
+    * a mapping ``{x: 2, y: 3}`` -- used directly (multi-variable),
+    * an iterable of equalities ``[Eq(x,2), Eq(y,3)]`` -- merged.
     """
+    if isinstance(candidate, Mapping):
+        return {sympify(k): sympify(v) for k, v in candidate.items()}
+    if isinstance(candidate, Eq):
+        return {sympify(candidate.lhs): sympify(candidate.rhs)}
+    if isinstance(candidate, (list, tuple)) and all(
+        isinstance(item, Eq) for item in candidate
+    ):
+        mapping = {}
+        for item in candidate:
+            mapping[sympify(item.lhs)] = sympify(item.rhs)
+        return mapping
+    # Bare scalar value.
+    if variable is None:
+        raise ValueError(
+            "A bare candidate value requires an explicit variable for "
+            "substitution."
+        )
+    return {sympify(variable): sympify(candidate)}
 
-    original_expression: object  # The original equation/expression
-    candidates: tuple  # Candidate solutions to verify
-    original_equation: object = None  # Original equation if different from expression
-    domain_restrictions: tuple = ()  # Domain restrictions to enforce
 
-    def __post_init__(self):
-        if self.original_equation is None:
-            object.__setattr__(self, "original_equation", self.original_expression)
+def _check_substitution(original_eq: Eq, mapping: Mapping) -> tuple:
+    """Return ``(status, method)`` for substituting ``mapping`` into ``original_eq``.
+
+    Uses exact symbolic comparison first; if the difference is a definite
+    non-zero number it is INVALID; if it remains unresolved it is INDETERMINATE.
+    """
+    lhs = original_eq.lhs
+    rhs = original_eq.rhs
+    try:
+        diff = simplify(sympify(lhs - rhs).subs(mapping))
+    except Exception:  # noqa: BLE001 - substitution may fail on exotic objects
+        return VerificationStatus.INDETERMINATE, VerificationMethod.SYMBOLIC
+
+    # Exact symbolic equality.
+    try:
+        if diff.is_zero is True:
+            return VerificationStatus.PASSED, VerificationMethod.SYMBOLIC
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if diff.equals(S(0)):
+            return VerificationStatus.PASSED, VerificationMethod.SYMBOLIC
+    except Exception:  # noqa: BLE001
+        pass
+
+    # If the difference is a concrete, non-zero number we can definitively reject.
+    if diff.is_number:
+        if not diff.is_zero and diff.is_real or (diff.is_number and diff != 0):
+            return VerificationStatus.FAILED, VerificationMethod.SYMBOLIC
+
+    return VerificationStatus.INDETERMINATE, VerificationMethod.SYMBOLIC
 
 
-@dataclass(frozen=True, slots=True)
-class VerificationReport:
-    """Complete verification report for a transformation result."""
+def _check_conditions(mapping: Mapping, conditions: Iterable) -> tuple:
+    """Return ``(checked, failed)`` for a list of conditions.
 
-    original_expression: object
-    """The original problem expression."""
+    Each condition is either a ``Condition`` (from the transformation layer), a
+    Phase 35.1 concrete condition class (``NonZeroCondition`` etc., which expose
+    an ``.expression`` property), or a raw SymPy relational. A condition that
+    cannot be conclusively evaluated is reported in ``failed`` with a ``None``
+    value so callers treat the candidate conservatively.
+    """
+    checked = []
+    failed = []
+    for condition in conditions:
+        # Normalize: any object exposing a symbolic `.expression` (dataclass
+        # field or property) is unwrapped; raw SymPy relationals pass through.
+        symbolic = getattr(condition, "expression", condition)
 
-    verified_candidates: tuple = field(default_factory=tuple)
-    """Candidates that passed verification."""
+        checked.append(condition)
+        try:
+            result = sympify(symbolic).subs(mapping)
+        except Exception:  # noqa: BLE001
+            failed.append((condition, None))
+            continue
 
-    rejected_candidates: tuple = field(default_factory=tuple)
-    """Candidates that failed verification."""
+        simplified = simplify(result)
+        if simplified is S.true:
+            continue
+        if simplified is S.false:
+            failed.append((condition, simplified))
+            continue
+        if simplified.is_Relational or isinstance(simplified, bool):
+            try:
+                if bool(simplified):
+                    continue
+                failed.append((condition, simplified))
+                continue
+            except Exception:  # noqa: BLE001 - undecidable boolean
+                failed.append((condition, None))
+                continue
+        # Residual non-boolean expression that could not be reduced.
+        failed.append((condition, None))
 
-    indeterminate_candidates: tuple = field(default_factory=tuple)
-    """Candidates with indeterminate verification status."""
-
-    extraneous_detected: bool = False
-    """Whether any extraneous solutions were detected and removed."""
-
-    details: dict = field(default_factory=dict)
-    """Additional verification details."""
-
-    @property
-    def all_passed(self) -> bool:
-        return len(self.rejected_candidates) == 0 and len(self.indeterminate_candidates) == 0
-
-    @property
-    def valid_solutions(self) -> tuple:
-        """All candidates that passed or are indeterminate."""
-        return self.verified_candidates + self.indeterminate_candidates
+    return tuple(checked), tuple(failed)
 
 
 class EquationVerifier:
-    """Verifies that candidate solutions satisfy the original equation."""
+    """Verify candidate solutions against an original equation.
 
-    def __init__(self, original_equation, variable=None):
+    Parameters
+    ----------
+    original_equation:
+        The *original* equation (SymPy ``Eq``) that candidates must satisfy.
+    variable:
+        The single variable to substitute a bare scalar candidate into; optional
+        when candidates are passed as ``Eq``/mapping.
+    conditions:
+        Optional domain conditions (``Condition`` or SymPy relationals) that a
+        candidate must also satisfy (e.g. ``x != 0``, ``x >= 0``).
+    """
+
+    def __init__(
+        self,
+        original_equation,
+        variable=None,
+        conditions: Iterable = (),
+    ):
         self.original_equation = original_equation
         self.variable = variable
+        self.conditions = tuple(conditions)
 
-    def verify(self, candidate) -> tuple:
-        """Verify a single candidate solution.
+    def verify(self, candidate) -> VerificationResult:
+        """Verify a single candidate against the original equation.
 
-        Args:
-            candidate: The candidate solution to verify.
+        Parameters
+        ----------
+        candidate:
+            A bare value, an ``Eq``, a mapping, or an iterable of ``Eq``.
 
-        Returns:
-            Tuple of (VerificationResult, verified_candidate or None).
+        Returns
+        -------
+        VerificationResult
+            A structured result carrying the decision plus diagnostics.
         """
-        from sympy import Eq, simplify, solve, symbols
+        # Non-equalities cannot be substitution-verified in this manner.
+        if not isinstance(self.original_equation, Eq):
+            return VerificationResult(
+                status=VerificationStatus.INDETERMINATE,
+                method=VerificationMethod.SYMBOLIC,
+                candidate=candidate,
+                substituted=None,
+                conditions_checked=(),
+                failed_conditions=(),
+                extraneous=False,
+                message="Original problem is not an equality; cannot verify by substitution.",
+            )
 
-        if isinstance(self.original_equation, Eq):
-            # Substitute the candidate into the original equation
-            if self.variable:
-                try:
-                    substituted = self.original_equation.subs(self.variable, candidate)
-                    simplified = simplify(substituted.lhs - substituted.rhs)
-                    if simplified == 0:
-                        return True, candidate
-                except Exception:
-                    pass
+        try:
+            mapping = _candidate_substitution(candidate, self.variable)
+        except ValueError as exc:
+            return VerificationResult(
+                status=VerificationStatus.INDETERMINATE,
+                method=VerificationMethod.SYMBOLIC,
+                candidate=candidate,
+                substituted=None,
+                conditions_checked=(),
+                failed_conditions=(),
+                extraneous=False,
+                message=str(exc),
+            )
 
-            # Try numeric verification as fallback
-            try:
-                # This is a simplified check - real implementation would be more robust
-                pass
-            except Exception:
-                pass
+        status, method = _check_substitution(self.original_equation, mapping)
 
-        return False, None
+        checked, failed = _check_conditions(mapping, self.conditions)
 
-    def verify_all(self, candidates):
-        """Verify multiple candidates."""
-        results = []
-        for c in candidates:
-            passed, _ = self.verify(c)
-            if passed:
-                yield c
+        # A violated domain condition forces INVALID (never silently VALID).
+        if failed and any(not (isinstance(f, tuple) and f[1] is None) for f in failed):
+            if status is not VerificationStatus.FAILED:
+                status = VerificationStatus.FAILED
+            message = "Candidate violates one or more domain conditions."
+        elif status is VerificationStatus.PASSED and any(
+            isinstance(f, tuple) and f[1] is None for f in failed
+        ):
+            # An undecidable condition downgrades VALID to INDETERMINATE.
+            status = VerificationStatus.INDETERMINATE
+            message = "A domain condition could not be conclusively evaluated."
+        elif status is VerificationStatus.INDETERMINATE and not failed:
+            message = (
+                "Could not conclusively establish equality via symbolic "
+                "substitution."
+            )
+        elif status is VerificationStatus.FAILED:
+            message = (
+                "Candidate does not satisfy the original equation "
+                "(extraneous or incorrect)."
+            )
+        else:
+            message = "Candidate satisfies the original equation."
+
+        extraneous = (
+            status is VerificationStatus.FAILED
+            and len(mapping) > 0
+        )
+
+        return VerificationResult(
+            status=status,
+            method=method,
+            candidate=candidate,
+            substituted=mapping,
+            conditions_checked=checked,
+            failed_conditions=failed,
+            extraneous=extraneous,
+            message=message,
+        )
+
+
+def verify_against_original(candidate, original_equation, variable=None) -> VerificationResult:
+    """Convenience wrapper returning a full :class:`VerificationResult`."""
+    return EquationVerifier(original_equation, variable=variable).verify(candidate)
 
 
 class BranchVerifier:
-    """Verifies solutions from branch-producing transformations.
+    """Verify every branch produced by a transformation, independently."""
 
-    Handles verification of multiple branches, detects and removes
-    extraneous solutions introduced by irreversible transformations.
-    """
+    def __init__(self, original_equation, variable=None, conditions=()):
+        self._verifier = EquationVerifier(
+            original_equation, variable=variable, conditions=conditions
+        )
 
-    def __init__(self, original_equation):
-        self.original_equation = original_equation
+    def verify_branch_set(self, branches: Iterable) -> list[tuple]:
+        """Verify each branch against the original equation.
 
-    def verify_branch_set(self, branch_set, variable=None) -> tuple:
-        """Verify all branches in a BranchSet.
+        Parameters
+        ----------
+        branches:
+            An iterable of ``Branch`` (or ``Eq``/candidate values).
 
-        Returns:
-            Tuple of (verified_branches, rejected_branches, extraneous_count)
+        Returns
+        -------
+        list of ``(branch, VerificationResult)`` pairs, preserving branch order.
         """
-        from math_engine.transformations.branches import BranchSet
+        results = []
+        for branch in branches:
+            expr = branch.expression if isinstance(branch, Branch) else branch
+            results.append((branch, self._verifier.verify(expr)))
+        return results
 
-        if not isinstance(branch_set, tuple):
-            # Assume it's a BranchSet or tuple of branches
-            pass
 
-        verified = []
-        rejected = []
+def check_extraneous_solutions(
+    candidates: Iterable, original_equation, variable=None, conditions=()
+) -> tuple:
+    """Partition candidates into ``(valid, extraneous, indeterminate)``.
 
-        for branch in branch_set:
-            # Verify this branch
-            # For now, just check if it's mathematically valid
-            verified = True  # Placeholder
-            if verified:
-                yield branch, True
-            else:
-                yield branch, False
+    A candidate is *extraneous* when it fails the original equation. This is the
+    mechanism future solvers use to reject solutions produced by non-injective
+    transformations (e.g. squaring both sides).
+    """
+    verifier = EquationVerifier(original_equation, variable=variable, conditions=conditions)
+    valid, extraneous, indeterminate = [], [], []
+    for candidate in candidates:
+        result = verifier.verify(candidate)
+        if result.valid:
+            valid.append(candidate)
+        elif result.invalid:
+            extraneous.append(candidate)
+        else:
+            indeterminate.append(candidate)
+    return tuple(valid), tuple(extraneous), tuple(indeterminate)
 
 
 class TransformationVerifier:
-    """High-level verifier for transformation results.
+    """Verify a :class:`TransformationResult` against an original problem."""
 
-    Coordinates verification of transformation results, handling both
-    single-result and branch-producing transformations.
-    """
+    def __init__(self, original_equation, variable=None, conditions=()):
+        self._verifier = EquationVerifier(
+            original_equation, variable=variable, conditions=conditions
+        )
 
-    def __init__(self):
-        self.equation_verifier = EquationVerifier(None)
+    def verify_result(self, result: TransformationResult) -> list[tuple]:
+        """Verify the branches (or single result) of a transformation.
 
-    def verify_result(self, result, original_equation) -> bool:
-        """Verify a complete transformation result.
-
-        Args:
-            result: The TransformationResult to verify.
-            original_equation: The original equation/problem.
-
-        Returns:
-            True if verification passes, False otherwise.
+        Returns
+        -------
+        list of ``(candidate, VerificationResult)`` for each branch of
+        ``result``; for a single-result transformation a one-element list.
         """
-        # If the result has branches, verify each branch
         if result.branches:
-            all_passed = True
-            for branch in result.branches:
-                # Check if branch satisfies original equation
-                # This is a simplified check - real implementation would be more robust
-                pass
-
-        # For single results, check against original
-        return True  # Placeholder
-
-
-def verify_against_original(candidate, original_equation, variable=None) -> bool:
-    """Verify a candidate solution against the original equation.
-
-    Args:
-        candidate: The candidate solution.
-        original_equation: The original equation.
-        variable: The variable to substitute (optional, inferred if not provided).
-
-    Returns:
-        True if the candidate satisfies the original equation.
-    """
-    from sympy import Eq, simplify, solve
-
-    if not isinstance(original_equation, Eq):
-        return True  # Can't verify non-equations
-
-    try:
-        if variable:
-            substituted = original_equation.subs(variable, candidate)
-            diff = simplify(substituted.lhs - substituted.rhs)
-            return diff == 0
-    except Exception:
-        pass
-
-    return False
-
-
-def check_extraneous_solutions(candidates, original_equation, variable=None):
-    """Check a list of candidates for extraneous solutions.
-
-    Args:
-        candidates: Iterable of candidate solutions.
-        original_equation: The original equation.
-        variable: The variable to substitute.
-
-    Returns:
-        Tuple of (valid_solutions, extraneous_solutions).
-    """
-    valid = []
-    extraneous = []
-
-    for candidate in candidates:
-        if verify_against_original(candidate, original_equation, variable):
-            valid.append(candidate)
+            candidates = [b.expression for b in result.branches]
         else:
-            extraneous.append(candidate)
-
-    return tuple(valid), tuple(extraneous)
+            candidates = [result.transformed_expression]
+        return [(c, self._verifier.verify(c)) for c in candidates]
 
 
 __all__ = [
     "VerificationStatus",
     "VerificationMethod",
     "VerificationResult",
-    "VerificationContext",
-    "VerificationReport",
     "EquationVerifier",
     "BranchVerifier",
     "TransformationVerifier",

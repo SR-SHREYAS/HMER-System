@@ -30,6 +30,12 @@ from .branches import (
     BranchSet,
 )
 
+from .presentation import (
+    TransformationPayload,
+    payload,
+    step_from_result,
+)
+
 __all__ = [
     "TransformationResult",
     "Reversibility",
@@ -43,4 +49,7 @@ __all__ = [
     "PositiveCondition",
     "Branch",
     "BranchSet",
+    "TransformationPayload",
+    "payload",
+    "step_from_result",
 ]

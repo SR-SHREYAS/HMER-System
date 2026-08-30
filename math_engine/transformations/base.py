@@ -262,6 +262,17 @@ class Transformation:
     extraneous_risk: bool = False
     """Whether this transformation can introduce extraneous solutions."""
 
+    def __init__(self, name: str | None = None, description: str | None = None, **kwargs):
+        # Use class attributes as defaults if not provided
+        if name is None:
+            name = getattr(self, 'name', '')
+        if description is None:
+            description = getattr(self, 'description', '')
+        object.__setattr__(self, 'name', name)
+        object.__setattr__(self, 'description', description)
+        for k, v in kwargs.items():
+            object.__setattr__(self, k, v)
+
     def can_apply(self, expression) -> bool:
         """Check if this transformation can be applied to the given expression.
 

@@ -10,8 +10,6 @@ composable and reusable across different solvers.
 
 from __future__ import annotations
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -20,7 +18,7 @@ from sympy import (
     expand, simplify, solve, latex, symbols, Symbol, Eq as SymEq
 )
 
-from ..models import Step
+from math_engine.models import Step
 from .base import (
     Transformation,
     TransformationResult,
@@ -35,8 +33,6 @@ from .base import (
     Branch,
     BranchSet,
 )
-from ..models import Step
-from ...models import Step as StepModel
 
 # Re-export commonly used types
 __all__ = [
@@ -70,15 +66,34 @@ class AlgebraicTransformation(Transformation):
         return isinstance(expression, Eq)
 
 
-class AddSubtractBothSides(Transformation):
-    """Add or subtract the same quantity from both sides of an equation.
+def _has_minus_sign(expr) -> bool:
+    """Return True when ``expr`` has a syntactic leading minus sign.
 
-    This transformation moves terms from one side of an equation to the other
-    by adding or subtracting the same quantity from both sides.
+    Unlike ``expr.is_negative`` (which is ``None``/undecidable for symbolic
+    quantities), this inspects the structure to detect an explicit leading
+    negative factor (e.g. ``-2*x``, ``-1/2``, ``-4``).
+    """
+    if expr.is_number:
+        return bool(expr < 0)
+    try:
+        return bool(expr.could_extract_minus_sign())
+    except Exception:  # noqa: BLE001 - fall back to unevaluated sign check
+        coeff, _ = expr.as_coeff_Mul()
+        return coeff.is_negative is True
+
+
+class AddSubtractBothSides(Transformation):
+    """Add a signed quantity to both sides of an equation: ``A = B  ⇒  A + q = B + q``.
+
+    This is the single universal primitive underlying "move a term to the other
+    side": to eliminate a term ``t`` one adds ``-t`` to both sides. ``q`` may be
+    any symbolic expression; a negative ``q`` corresponds to subtraction. This
+    operation is fully reversible (an injective/equivalence-preserving step) and
+    requires no verification.
     """
 
     name = "add_subtract_both_sides"
-    description = "Add or subtract the same quantity from both sides of an equation"
+    description = "Add a signed quantity q to both sides: A = B ==> A + q = B + q"
     reversibility = "reversible"
     verification_required = "none"
     extraneous_risk = False
@@ -87,74 +102,71 @@ class AddSubtractBothSides(Transformation):
         from sympy import Eq
         return isinstance(expression, Eq)
 
-    def apply(self, expression, term_to_move) -> "TransformationResult":
-        """Move a term from one side of the equation to the other.
+    def apply(self, expression, amount=0) -> "TransformationResult":
+        """Add ``amount`` to both sides of ``expression``.
 
         Args:
-            expression: The equation (SymPy Eq).
-            term_to_move: The term to move from one side to the other.
+            expression: The equation (SymPy ``Eq``).
+            amount: The quantity to add to both sides (may be negative).
 
         Returns:
             TransformationResult with the transformed equation and step.
         """
-        from sympy import Eq, Add, latex
+        from sympy import Eq, latex, sympify
 
         if not self.can_apply(expression):
             raise TransformationError("Expression must be an equation")
 
-        # Determine which side the term is on
-        if expression.lhs.has(term_to_move):
-            # Term is on LHS, move to RHS by subtracting from both sides
-            new_lhs = simplify(expression.lhs - term_to_move)
-            new_rhs = simplify(expression.rhs - term_to_move)
-            operation = "subtract"
-        elif expression.rhs.has(term_to_move):
-            # Term is on RHS, move to LHS by adding to both sides
-            new_lhs = simplify(expression.lhs + term_to_move)
-            new_rhs = simplify(expression.rhs + term_to_move)
-            operation = "add"
-        else:
-            raise TransformationError(f"Term {term_to_move} not found in equation")
+        # Accept plain Python numbers (int/float) as well as SymPy objects.
+        amount = sympify(amount)
 
+        if simplify(amount) == 0:
+            raise TransformationError("Adding zero has no effect")
+
+        new_lhs = simplify(expression.lhs + amount)
+        new_rhs = simplify(expression.rhs + amount)
         transformed = Eq(new_lhs, new_rhs)
 
-        # Build the step latex
-        if operation == "subtract":
-            op_latex = f"- {latex(term_to_move)}"
-            desc = f"Subtract {term_to_move} from both sides"
+        # Educational description reflects the actual (signed) operation. We
+        # detect the leading minus sign syntactically (rather than via
+        # ``.is_negative``, which is undecidable for symbolic amounts) so the
+        # rendered step shows ``- |amount|`` instead of a confusing ``+ - ...``.
+        if _has_minus_sign(amount):
+            op_latex = f"- {latex(-amount)}"
+            desc = f"Subtract {latex(-amount)} from both sides"
+            operation = "subtract"
         else:
-            op_latex = f"+ {latex(term_to_move)}"
-            desc = f"Add {term_to_move} to both sides"
+            op_latex = f"+ {latex(amount)}"
+            desc = f"Add {latex(amount)} to both sides"
+            operation = "add"
 
         step_latex = (
             "\\begin{aligned}\n"
             f"{latex(expression)} \\\\\n"
             f"{op_latex} \\\\\n"
-            f"{latex(Eq(new_lhs, new_rhs))}\n"
+            f"{latex(transformed)}\n"
             "\\end{aligned}"
         )
 
         step = Step(
-            title="Move term to other side",
-            description=f"{desc} to isolate the variable term.",
+            title="Add or subtract the same quantity from both sides",
+            description=f"{desc} to preserve equality.",
             latex=step_latex,
-            metadata={"kind": "move_term", "operation": operation},
+            metadata={"kind": "add_subtract_both_sides", "operation": operation,
+                      "amount": amount},
         )
 
         return TransformationResult(
             original_expression=expression,
-            transformed_expression=Eq(new_lhs, new_rhs),
-            step=Step(
-                title="Move term to other side",
-                description=desc,
-                latex=step_latex,
-                metadata={"kind": "move_term", "operation": operation},
-            ),
+            transformed_expression=transformed,
+            step=step,
             branches=(),
             conditions=(),
-            reversibility="reversible",
-            verification_required="none",
+            domain_restrictions=(),
+            reversibility=Reversibility.REVERSIBLE.value,
+            verification_required=VerificationRequirement.NONE.value,
             extraneous_risk=False,
+            metadata={"amount": amount, "operation": operation},
         )
 
 
@@ -277,149 +289,200 @@ class DistributiveLaw(Transformation):
         )
 
 
-class SquareRootTransformation(Transformation):
-    """Apply the square root property to solve equations of the form x² = a.
+def _squared_side(eq):
+    """Return ``(base, value)`` where one side is ``base**2`` and the other is ``value``.
 
-    This transformation produces two branches: x = √a and x = -√a.
+    Handles both orientations: ``f(x)**2 = g(x)`` and ``g(x) = f(x)**2``.
+    Returns ``(None, None)`` when neither side is a square.
+    """
+    lhs, rhs = eq.lhs, eq.rhs
+    if isinstance(lhs, Pow) and lhs.exp == 2:
+        return lhs.base, rhs
+    if isinstance(rhs, Pow) and rhs.exp == 2:
+        return rhs.base, lhs
+    return None, None
+
+
+class SquareRootTransformation(Transformation):
+    """Apply the square-root property: ``f(x)² = g(x)  ⇒  f(x) = ±√g(x)``.
+
+    This transformation produces two branches and must never collapse them into
+    a single result. The base being squared may be any expression ``f(x)`` (not
+    only a bare symbol); the radicand may be symbolic.
+
+    The transformation exposes ``branches`` via the Phase 35.1 ``Branch`` model
+    and is marked ``branch_producing`` with ``verification_required="required"``.
     """
 
     name = "square_root_property"
-    description = "Apply the square root property to solve x² = a"
+    description = "Apply the square root property: f(x)^2 = g(x) -> f(x) = ±sqrt(g(x))"
     reversibility = "branch_producing"
     verification_required = "required"
     extraneous_risk = True
 
     def can_apply(self, expression) -> bool:
-        from sympy import Eq, Pow
         if not isinstance(expression, Eq):
             return False
-        # Check if it's of the form x^2 = a or a = x^2
-        lhs, rhs = expression.lhs, expression.rhs
-        return (
-            (lhs.is_Pow and lhs.exp == 2 and lhs.base.is_Symbol and not rhs.has(lhs.base)) or
-            (rhs.is_Pow and rhs.exp == 2 and rhs.base.is_Symbol and not lhs.has(rhs.base))
-        )
+        base, value = _squared_side(expression)
+        if base is None:
+            return False
+        # The non-squared side must not itself contain the squared base
+        # (avoids e.g. x^2 = x^2 which is not a meaningful square-root step).
+        return not value.has(base)
 
     def apply(self, expression) -> "TransformationResult":
-        from sympy import Eq, sqrt, latex, symbols, solve
+        from sympy import Eq, sqrt, latex, Ge, Integer
 
         if not self.can_apply(expression):
-            raise TransformationError("Expression must be of the form x² = a")
+            raise TransformationError(
+                "SquareRootTransformation requires an equation "
+                "f(x)^2 = g(x) (one side an exact square)."
+            )
 
-        # Determine which side has the square
-        lhs, rhs = expression.lhs, expression.rhs
-        if lhs.is_Pow and lhs.exp == 2:
-            variable = lhs.base
-            value = rhs
-        else:
-            variable = rhs.base
-            value = lhs
+        base, value = _squared_side(expression)
 
-        # Create the two branches
         pos_root = sqrt(value)
         neg_root = -sqrt(value)
 
-        branch1 = Eq(expression.lhs if expression.lhs.is_Pow else expression.rhs, pos_root)
-        branch2 = Eq(expression.lhs if expression.lhs.is_Pow else expression.rhs, neg_root)
+        # Branch count: x^2 = 0 collapses ±0 to a single branch.
+        if simplify(value) == 0:
+            branch_equations = (Eq(base, Integer(0)),)
+        else:
+            branch_equations = (Eq(base, pos_root), Eq(base, neg_root))
 
-        # For the step latex, show both branches
+        branches = tuple(
+            Branch(expression=eq, description=latex(eq))
+            for eq in branch_equations
+        )
+
+        sign_latex = latex(base)
+        sqrt_latex = latex(sqrt(value))
         step_latex = (
             "\\begin{aligned}\n"
             f"{latex(expression)} \\\\\n"
-            f"{latex(variable)} = \\pm \\sqrt{{{latex(solve(expression.lhs - expression.rhs, expression.free_symbols.pop())[0])}}} \\\\\n"
-            f"{latex(variable)} = {latex(pos_root)} \\quad \\text{{or}} \\quad {latex(variable)} = {latex(neg_root)}\n"
+            f"{sign_latex} = \\pm \\sqrt{{{latex(value)}}} \\\\\n"
+            f"{sign_latex} = {sqrt_latex} \\quad \\text{{or}} \\quad "
+            f"{sign_latex} = -{sqrt_latex}\n"
             "\\end{aligned}"
         )
 
         step = Step(
-            title="Apply square root property",
-            description=f"Take the square root of both sides. Remember: x² = a has two solutions x = ±√a.",
+            title="Apply the square-root property",
+            description=(
+                f"Take the square root of both sides of {latex(expression)}. "
+                f"Since squaring is not injective, {latex(base)} may be either "
+                f"{latex(pos_root)} or {latex(neg_root)}."
+            ),
             latex=step_latex,
-            metadata={"kind": "square_root", "branches": 2},
+            metadata={"kind": "square_root", "branches": len(branches)},
         )
+
+        # A real-valued domain restriction is attached only when the radicand
+        # is a negative number *and* we intend to restrict to real solutions.
+        # Since this transformation keeps the (±) branch structure and lets
+        # SymPy yield complex values for negative radicands (e.g. x² = -1
+        # → x = ±i), we do NOT fabricate a real-root condition here. The
+        # branches themselves already carry the mathematically correct result.
+        conditions = ()
 
         return TransformationResult(
             original_expression=expression,
-            transformed_expression=Eq(pos_root, neg_root),  # Represent both branches
-            step=Step(
-                title="Apply square root property",
-                description="Take the square root of both sides. Remember: x² = a has two solutions x = ±√a.",
-                latex=step_latex,
-                metadata={"kind": "square_root", "branches": 2},
-            ),
-            branches=(
-                Branch(expression=branch1, description=f"{variable} = {pos_root}"),
-                Branch(expression=branch2, description=f"{variable} = {neg_root}"),
-            ),
-            conditions=(Condition(expression=Ge(value, 0), description=f"{value} ≥ 0 for real roots"),),
-            reversibility="branch_producing",
-            verification_required="required",
+            transformed_expression=Eq(base, pos_root),
+            step=step,
+            branches=branches,
+            conditions=conditions,
+            domain_restrictions=(),
+            reversibility=Reversibility.BRANCH_PRODUCING.value,
+            verification_required=VerificationRequirement.REQUIRED.value,
             extraneous_risk=True,
+            metadata={"radicand": value, "base": base},
         )
 
 
 class ZeroProductProperty(Transformation):
-    """Apply the zero product property: if a·b = 0, then a = 0 or b = 0."""
+    """Apply the zero-product property: ``A·B = 0  ⇒  A = 0 or B = 0``.
+
+    This transformation is inherently branch-producing: one branch per factor
+    of the product on the left-hand side. It operates on the mathematical
+    structure (a top-level ``Mul`` equal to zero) and does not assume the
+    factors are linear or the variable is named ``x``.
+    """
 
     name = "zero_product_property"
-    description = "Apply the zero product property: if a·b = 0, then a = 0 or b = 0"
+    description = "Apply the zero-product property: A*B = 0 -> A = 0 or B = 0"
     reversibility = "branch_producing"
     verification_required = "none"
     extraneous_risk = False
 
     def can_apply(self, expression) -> bool:
-        from sympy import Eq, Mul
         if not isinstance(expression, Eq):
             return False
         return isinstance(expression.lhs, Mul) and expression.rhs == 0
 
     def apply(self, expression) -> "TransformationResult":
-        from sympy import Eq, Mul, latex, solve
+        from sympy import Eq, Mul, latex
 
-        factors = expression.lhs.args
-        branches = []
-
-        for i, factor in enumerate(factors):
-            branch_eq = Eq(factor, 0)
-            branch = Eq(factor, 0)
-            branches.append(
-                Branch(
-                    expression=branch_eq,
-                    description=f"Set factor {i+1} to zero: {latex(factor)} = 0",
-                )
+        if not self.can_apply(expression):
+            raise TransformationError(
+                "ZeroProductProperty requires an equation of the form "
+                "A * B = 0 (a product equal to zero)."
             )
 
+        factors = expression.lhs.args
+
+        branches = tuple(
+            Branch(expression=Eq(factor, 0), description=f"{latex(factor)} = 0")
+            for factor in factors
+        )
+
+        factor_latex = r"\quad\text{or}\quad".join(
+            f"{latex(f)} = 0" for f in factors
+        )
         step_latex = (
             "\\begin{aligned}\n"
             f"{latex(expression)} \\\\\n"
-            " + ".join(f"{latex(f)} = 0" for f in factors) + " \\\\\n"
+            f"{factor_latex}\n"
             "\\end{aligned}"
         )
 
         step = Step(
-            title="Apply zero product property",
-            description="If a product equals zero, at least one factor must be zero.",
+            title="Apply the zero-product property",
+            description=(
+                f"If the product equals zero, at least one factor must be zero: "
+                f"{factor_latex}."
+            ),
             latex=step_latex,
-            metadata={"kind": "zero_product", "branches": len(factors)},
+            metadata={"kind": "zero_product", "branches": len(branches)},
         )
 
         return TransformationResult(
             original_expression=expression,
             transformed_expression=expression,
             step=step,
-            branches=tuple(branches),
+            branches=branches,
             conditions=(),
-            reversibility="branch_producing",
-            verification_required="none",
+            domain_restrictions=(),
+            reversibility=Reversibility.BRANCH_PRODUCING.value,
+            verification_required=VerificationRequirement.NONE.value,
             extraneous_risk=False,
+            metadata={"factors": factors},
         )
 
 
 class SquareBothSides(Transformation):
-    """Square both sides of an equation.
+    """Square both sides of an equation: ``A = B  ⇒  A² = B²``.
 
-    WARNING: This transformation can introduce extraneous solutions.
-    Verification against the original equation is REQUIRED.
+    Squaring is not an injective operation, so the resulting equation may admit
+    solutions that do not satisfy the original equation (extraneous roots).
+    This transformation therefore:
+
+    * does NOT produce branches,
+    * is marked ``irreversible``,
+    * sets ``verification_required="required"``,
+    * sets ``extraneous_risk=True``,
+
+    so downstream solvers know to verify each candidate against the original
+    equation before accepting it.
     """
 
     name = "square_both_sides"
@@ -429,11 +492,15 @@ class SquareBothSides(Transformation):
     extraneous_risk = True
 
     def can_apply(self, expression) -> bool:
-        from sympy import Eq
         return isinstance(expression, Eq)
 
     def apply(self, expression) -> "TransformationResult":
-        from sympy import Eq, Pow, latex, simplify
+        from sympy import Eq, Pow, latex
+
+        if not self.can_apply(expression):
+            raise TransformationError(
+                "SquareBothSides requires an equation A = B."
+            )
 
         lhs_squared = Pow(expression.lhs, 2)
         rhs_squared = Pow(expression.rhs, 2)
@@ -443,13 +510,19 @@ class SquareBothSides(Transformation):
             "\\begin{aligned}\n"
             f"{latex(expression)} \\\\\n"
             f"{latex(lhs_squared)} = {latex(rhs_squared)} \\\\\n"
-            "\\text{\\color{red}{\\textbf{WARNING: Squaring can introduce extraneous solutions.}}} \\\\\n"
+            "\\text{Squaring may introduce extraneous solutions; verify "
+            "candidates against the original equation.}\n"
             "\\end{aligned}"
         )
 
         step = Step(
-            title="Square both sides (caution: extraneous solutions possible)",
-            description="Square both sides to eliminate radicals. WARNING: This can introduce extraneous solutions that must be verified against the original equation.",
+            title="Square both sides",
+            description=(
+                f"Square both sides of {latex(expression)} to obtain "
+                f"{latex(transformed)}. This step is not reversible and may "
+                f"introduce extraneous solutions, so every candidate must be "
+                f"verified against the original equation."
+            ),
             latex=step_latex,
             metadata={"kind": "square_both_sides", "warning": "extraneous_solutions"},
         )
@@ -460,9 +533,11 @@ class SquareBothSides(Transformation):
             step=step,
             branches=(),
             conditions=(),
-            reversibility="irreversible",
-            verification_required="required",
+            domain_restrictions=(),
+            reversibility=Reversibility.IRREVERSIBLE.value,
+            verification_required=VerificationRequirement.REQUIRED.value,
             extraneous_risk=True,
+            metadata={"lhs": expression.lhs, "rhs": expression.rhs},
         )
 
 
