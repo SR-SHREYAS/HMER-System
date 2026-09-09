@@ -139,3 +139,4 @@ data.zip
 wandb/
 test.jpg
 *.ipynb
+opencode.json

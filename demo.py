@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from PIL import Image
 import io
 import gc
@@ -15,6 +16,22 @@ from mtl.datamodule import vocab
 from mtl.lit_mtl import LitMTL
 from torchvision.transforms import ToTensor
 import torch
+
+# --- Optional mathematical engine -----------------------------------------
+# Recognition must keep working even when the engine (or its SymPy dependency)
+# is unavailable, so these imports are guarded and the math pipeline is never
+# allowed to fail a request.
+try:
+    from math_engine.dispatcher import DispatcherError, dispatch
+    from math_engine.parser import LatexParserError, latex_to_expression
+    from math_engine.reasoning import ReasoningError
+    from math_engine.reasoning import default_engine as reasoning_engine
+    from math_engine.models import Expression
+    from math_engine.solver import SolverError
+    from math_engine.solver import default_factory as solver_factory
+    _MATH_ENGINE_AVAILABLE = True
+except ImportError:
+    _MATH_ENGINE_AVAILABLE = False
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_float32_matmul_precision("medium")
@@ -97,8 +114,17 @@ async def predict_sequence(
     torch.cuda.empty_cache()
     gc.collect()
     print(pred_sequence)
+
+    math_result = _run_math_engine(pred_latex)
     return JSONResponse(
-        content={"sequence": pred_sequence, "latex": pred_latex},
+        content={
+            "sequence": pred_sequence,
+            "latex": pred_latex,
+            "expression": math_result["expression"],
+            "task": math_result["task"],
+            "answer": math_result["answer"],
+            "steps": math_result["steps"],
+        },
         status_code=200
     )
 
@@ -106,6 +132,107 @@ async def predict_sequence(
 @app.get("/health")
 async def health():
     return {"status": "ok", "device": str(DEVICE)}
+
+
+class SolveRequest(BaseModel):
+    """JSON body accepted by the frontend-integration ``/solve`` proxy."""
+    input: str
+    type: str = "derivative"
+
+
+@app.post("/solve")
+async def solve_proxy(request: SolveRequest):
+    """Forward a solver request to the adapter-backed API.
+
+    The frontend posts recognized LaTeX here (same origin as the served UI).
+    This route is a thin integration seam only: all work is delegated to
+    ``api.adapter.solve``, which owns normalization, engine dispatch and
+    serialization. It never touches the math engine directly.
+    """
+    try:
+        from api.adapter import solve
+    except ImportError:
+        return dict(_EMPTY_MATH_RESULT)
+    try:
+        return solve(request.input, request.type)
+    except Exception as exc:  # noqa: BLE001 - never let the UI crash
+        return {
+            "success": False,
+            "result": "",
+            "steps": [],
+            "verification": {"passed": False, "method": "symbolic", "samples": 0},
+            "error": f"Unexpected failure: {exc}",
+        }
+
+
+_EMPTY_MATH_RESULT = {
+    "expression": None,
+    "task": "unknown",
+    "answer": None,
+    "steps": [],
+}
+
+
+def _run_math_engine(latex: str) -> dict:
+    """Run the optional math pipeline and return JSON-safe results.
+
+    Any parser, dispatcher, solver or reasoning failure is logged and falls
+    back to the empty result so recognition always succeeds.
+    """
+    if not _MATH_ENGINE_AVAILABLE:
+        return dict(_EMPTY_MATH_RESULT)
+
+    try:
+        parsed = latex_to_expression(latex)
+        expression = Expression(raw_latex=latex, sympy_expression=parsed)
+        classified = dispatch(expression)
+        solver = solver_factory.build(classified)
+        solution = solver.solve(classified)
+        reasoned = reasoning_engine.generate(solution)
+        return {
+            "expression": _serialize_expression(classified),
+            "task": classified.task.value,
+            "answer": solution.final_answer,
+            "steps": [_serialize_step(step) for step in reasoned.steps],
+        }
+    except (LatexParserError, DispatcherError, SolverError, ReasoningError) as exc:
+        print(f"[math-engine] {type(exc).__name__}: {exc}")
+        return dict(_EMPTY_MATH_RESULT)
+
+
+def _serialize_expression(expression) -> dict:
+    """Convert an Expression model into a JSON-safe dictionary."""
+    return {
+        "raw_latex": expression.raw_latex,
+        "task": expression.task.value if expression.task else None,
+    }
+
+
+def _json_safe(value):
+    """Recursively convert a value into a JSON-serializable form.
+
+    Symbolic mathematics (`roots`, coefficients, discriminants) is stored on
+    steps as SymPy objects, which are not JSON-serializable. This renderer
+    keeps primitive values intact but stringifies any other object so the
+    frontend always receives valid JSON.
+    """
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _serialize_step(step) -> dict:
+    """Convert a Step model into a JSON-safe dictionary."""
+    return {
+        "title": step.title,
+        "description": step.description,
+        "latex": step.latex,
+        "metadata": _json_safe(dict(step.metadata)),
+    }
 
 
 async def pipe(contents):

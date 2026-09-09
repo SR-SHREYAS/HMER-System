@@ -44,7 +44,7 @@
     </div>
 
     <!-- Prediction Output Section -->
-    <div class="w-1/3 border p-4 space-y-4">
+    <div class="w-1/3 border p-4 space-y-4" id="outputColumn">
       <div>
         <p class="font-semibold">Predicted Sequence:</p>
         <textarea id="seqResult" class="w-full p-2 border bg-gray-100 text-sm" rows="4" readonly></textarea>
@@ -59,9 +59,39 @@
         <p class="font-semibold mt-4">Rendered Math:</p>
         <div id="latexRender" class="p-2 border mt-1 bg-gray-100 text-sm min-h-[6rem]"></div>
       </div>
+
+      <div id="solveStatus" class="section-hidden">
+        <p class="font-semibold mt-4">Solving…</p>
+        <div class="flex items-center gap-2 p-2 border bg-gray-100 text-sm">
+          <span id="solveSpinner"
+                class="inline-block w-4 h-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"></span>
+          <span>Computing derivative…</span>
+        </div>
+      </div>
+
+      <div>
+        <p class="font-semibold mt-4">Recognized Task:</p>
+        <div id="taskResult" class="p-2 border bg-gray-100 text-sm"></div>
+      </div>
+
+      <div id="answerSection" class="section-hidden">
+        <p class="font-semibold mt-4">Final Result:</p>
+        <div id="answerResult" class="p-2 border bg-gray-100 text-sm min-h-[2rem]"></div>
+      </div>
+
+      <div id="errorSection" class="section-hidden">
+        <p class="font-semibold mt-4 text-red-600">Error:</p>
+        <div id="errorResult" class="p-2 border bg-red-50 text-red-700 text-sm"></div>
+      </div>
+
+      <div id="stepsSection" class="section-hidden">
+        <p class="font-semibold mt-4">Solution Steps:</p>
+        <ol id="stepsResult" class="space-y-3 text-sm max-h-96 overflow-y-auto pr-1"></ol>
+      </div>
     </div>
   </div>
 
+  <script src="/assets/animation.js"></script>
   <script src="/assets/script.js"></script>
 </body>
 </html>
