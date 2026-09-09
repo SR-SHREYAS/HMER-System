@@ -12,6 +12,7 @@ from sympy import Eq, Equality, latex, simplify
 
 from ...models import Step
 from .base_rule import BaseRule, linear_components, make_step
+from math_engine.transformations import add_subtract_both_sides
 
 
 class MoveConstantRule(BaseRule):
@@ -39,8 +40,12 @@ class MoveConstantRule(BaseRule):
         self._ensure_applicable(expression)
         symbol, coefficient, constant = linear_components(expression)
         lhs_constant = simplify(expression.lhs - coefficient * symbol)
+
+        # Use universal primitive for the mathematical transformation
+        result = add_subtract_both_sides(expression, lhs_constant)
+        updated = result.transformed_expression
+        
         rhs = simplify(-constant)
-        updated = Eq(coefficient * symbol, rhs)
         
         # Format the operation nicely: if constant is negative, we add its absolute value
         if lhs_constant < 0:

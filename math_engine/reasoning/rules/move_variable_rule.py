@@ -18,6 +18,7 @@ from sympy import Eq, Equality, Poly, latex, simplify
 from ...models import Step
 from .base_rule import BaseRule, linear_components, make_step
 from .rule_exceptions import RuleNotApplicableError
+from math_engine.transformations import add_subtract_both_sides
 
 
 class MoveVariableRule(BaseRule):
@@ -50,11 +51,22 @@ class MoveVariableRule(BaseRule):
                 "MoveVariableRule found no variable term to move on the "
                 "right-hand side."
             )
-        rhs_term = rhs_coefficient * symbol
+        # Extract the actual term from RHS that matches the coefficient,
+        # to ensure structural compatibility with the primitive's .has() check.
+        rhs_term = None
+        for arg in expression.rhs.args:
+            if arg.has(symbol):
+                arg_coeff = Poly(arg, symbol).coeff_monomial(symbol)
+                if arg_coeff == rhs_coefficient:
+                    rhs_term = arg
+                    break
+        if rhs_term is None:
+            # Fallback to constructed term (should not happen for valid linear equations)
+            rhs_term = rhs_coefficient * symbol
 
-        new_lhs = simplify(expression.lhs - rhs_term)
-        new_rhs = simplify(expression.rhs - rhs_term)
-        updated = Eq(new_lhs, new_rhs)
+        # Use universal primitive for the mathematical transformation
+        result = add_subtract_both_sides(expression, rhs_term)
+        updated = result.transformed_expression
         
         # Format the operation nicely
         if rhs_coefficient < 0:

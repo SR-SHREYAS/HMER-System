@@ -1,19 +1,20 @@
 """Rule that expands parentheses using symbolic expansion.
 
 :class:`ExpandRule` handles linear equations that contain a single level of
-parentheses (for example ``2(x + 3) = 10``). It relies on SymPy's own
-:func:`expand` to distribute products over sums — the rule performs no manual
-distribution arithmetic. Once the parentheses are removed the remaining rules
-(``MoveVariableRule``, ``MoveConstantRule``, ``DivideCoefficientRule``) take
-over, so the rule owns exactly one responsibility.
+parentheses (for example ``2(x + 3) = 10``). It relies on the universal
+:func:`distributive_law` primitive to distribute products over sums — the rule
+performs no manual distribution arithmetic. Once the parentheses are removed the
+remaining rules (``MoveVariableRule``, ``MoveConstantRule``,
+``DivideCoefficientRule``) take over, so the rule owns exactly one responsibility.
 """
 
 from __future__ import annotations
 
-from sympy import Add, Mul, expand, latex, preorder_traversal
+from sympy import Add, Mul, Basic, Eq, Pow, latex, preorder_traversal
 
 from ...models import Step
 from .base_rule import BaseRule, denominators, make_step
+from math_engine.transformations import distributive_law
 
 
 class ExpandRule(BaseRule):
@@ -40,7 +41,7 @@ class ExpandRule(BaseRule):
             the transformation.
         """
         self._ensure_applicable(expression)
-        expanded = expand(expression)
+        expanded = self._expand_equation(expression)
         step = make_step(
             "Expand the brackets",
             "Distribute the multiplier across each term inside the parentheses "
@@ -49,6 +50,33 @@ class ExpandRule(BaseRule):
             "expand",
         )
         return expanded, step
+
+    def _expand_equation(self, expression) -> Basic:
+        """Recursively expand all expandable products in the equation."""
+        if isinstance(expression, Eq):
+            lhs = self._expand_side(expression.lhs)
+            rhs = self._expand_side(expression.rhs)
+            return Eq(lhs, rhs)
+        return self._expand_side(expression)
+
+    def _expand_side(self, expr) -> Basic:
+        """Recursively expand all expandable products in an expression."""
+        if self._has_expandable_product(expr):
+            if isinstance(expr, Mul):
+                # Check if this Mul contains an Add factor and has no denominators
+                if any(isinstance(arg, Add) and arg.free_symbols for arg in expr.args):
+                    if not denominators(expr):
+                        try:
+                            result = distributive_law(expr)
+                            return result.transformed_expression
+                        except ValueError:
+                            pass
+        # Recursively process arguments for compound expressions
+        if isinstance(expr, (Add, Mul, Pow)) and expr.args:
+            new_args = tuple(self._expand_side(arg) for arg in expr.args)
+            if new_args != expr.args:
+                return expr.func(*new_args)
+        return expr
 
     def _format_expansion_latex(self, original, expanded):
         """Format the expansion step showing the distributive law application."""

@@ -13,6 +13,7 @@ from typing import TypeVar
 from ..models import Expression, TaskType
 from .base_solver import BaseSolver
 from .solver_exceptions import SolverNotImplementedError, UnknownTaskError
+from .subproblem import SubproblemRequest, SubproblemResult, MAX_DELEGATION_DEPTH
 
 T = TypeVar("T", bound="BaseSolver")
 
@@ -78,6 +79,66 @@ class SolverFactory:
                 f"No solver has been implemented for task {task.value!r} yet."
             )
         return solver_cls()
+
+    def solve_subproblem(self, request: "SubproblemRequest") -> "SubproblemResult":
+        """Solve a subproblem by delegating to the appropriate capability solver.
+
+        This method validates the request, constructs the appropriate child
+        solver, executes it, and returns the result wrapped in a
+        :class:`SubproblemResult`.
+
+        Parameters
+        ----------
+        request :
+            The subproblem request containing the capability to invoke,
+            the expression to solve, and optional context/depth.
+
+        Returns
+        -------
+        SubproblemResult
+            The child solver's complete solution plus metadata.
+
+        Raises
+        ------
+        ValueError
+            If the request's capability does not match the expression's task,
+            if depth is negative, or if depth exceeds the maximum allowed.
+        UnknownTaskError
+            If the expression's task is unknown.
+        SolverNotImplementedError
+            If no solver is registered for the expression's task.
+        """
+        if request.depth < 0:
+            raise ValueError("Subproblem depth cannot be negative")
+        if request.depth > MAX_DELEGATION_DEPTH:
+            raise ValueError(
+                f"Subproblem depth {request.depth} exceeds maximum "
+                f"delegation depth of {MAX_DELEGATION_DEPTH}"
+            )
+
+        # Validate that the requested capability matches the expression's task
+        expr_task = request.expression.task
+        if expr_task is None:
+            raise ValueError("Expression task is not classified")
+        if request.capability != expr_task:
+            raise ValueError(
+                f"Subproblem capability {request.capability.value!r} does not "
+                f"match expression task {expr_task.value!r}"
+            )
+
+        # Build the appropriate solver for the subproblem
+        solver = self.build(request.expression)
+
+        # Solve the subproblem
+        solution = solver.solve(request.expression)
+
+        # Wrap the result
+        subproblem_kind = f"{request.capability.value}_subproblem"
+        return SubproblemResult(
+            solution=solution,
+            subproblem_kind=subproblem_kind,
+            conditions=(),
+        )
 
 
 #: A process-wide factory that future solvers can register against.

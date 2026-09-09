@@ -32,6 +32,7 @@ from ..reasoning.rules.rule_exceptions import RuleError
 from .base_solver import BaseSolver
 from .solver_exceptions import SolverError
 from .solver_factory import default_factory
+from .subproblem import SubproblemRequest
 
 
 @default_factory.register
@@ -206,24 +207,15 @@ class EquationSolver(BaseSolver):
         return expr
 
     def _route_quadratic(self, problem: Expression) -> Solution:
-        """Route a quadratic equation to the registered quadratic solver.
-
-        The quadratic solver is not implemented yet, so this raises
-        :class:`SolverNotImplementedError` on its behalf.
-
-        Parameters
-        ----------
-        problem :
-            The expression to route.
-
-        Returns
-        -------
-        Solution
-            The solution produced by the quadratic solver.
-        """
+        """Route a quadratic equation to the registered quadratic solver via subproblem delegation."""
         quadratic = replace(problem, task=TaskType.QUADRATIC_EQUATION)
-        solver = default_factory.build(quadratic)
-        return solver.solve(quadratic)
+        request = SubproblemRequest(
+            capability=TaskType.QUADRATIC_EQUATION,
+            expression=quadratic,
+            depth=1,
+        )
+        result = default_factory.solve_subproblem(request)
+        return result.solution
 
     def _solve_equation(self, expr: Basic) -> Any:
         """Solve a SymPy equality symbolically.

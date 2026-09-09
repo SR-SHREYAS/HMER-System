@@ -12,6 +12,7 @@ from sympy import Eq, Equality, latex, simplify
 
 from ...models import Step
 from .base_rule import BaseRule, linear_components, make_step
+from math_engine.transformations import multiply_divide_both_sides
 
 
 class DivideCoefficientRule(BaseRule):
@@ -38,8 +39,12 @@ class DivideCoefficientRule(BaseRule):
         self._ensure_applicable(expression)
         symbol, coefficient, constant = linear_components(expression)
         rhs = simplify(-constant)
-        value = simplify(rhs / coefficient)
-        updated = Eq(symbol, value)
+
+        # Use universal primitive for the mathematical transformation
+        factor = 1 / coefficient
+        result = multiply_divide_both_sides(expression, factor)
+        updated = result.transformed_expression
+
         step = make_step(
             "Divide by the coefficient to solve for the variable",
             f"Divide both sides by the coefficient {coefficient} to isolate "

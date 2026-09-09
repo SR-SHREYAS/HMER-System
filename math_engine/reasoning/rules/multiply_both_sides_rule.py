@@ -16,6 +16,7 @@ from sympy import Eq, lcm, latex, simplify, sympify
 
 from ...models import Step
 from .base_rule import BaseRule, _single_symbol, denominators, make_step
+from math_engine.transformations import multiply_divide_both_sides
 
 
 class MultiplyBothSidesRule(BaseRule):
@@ -47,9 +48,9 @@ class MultiplyBothSidesRule(BaseRule):
         denoms = sorted(denominators(expression))
         lcd = reduce(lcm, [sympify(d) for d in denoms], sympify(1))
 
-        new_lhs = simplify(expression.lhs * lcd)
-        new_rhs = simplify(expression.rhs * lcd)
-        updated = Eq(new_lhs, new_rhs)
+        # Use universal primitive for the mathematical transformation
+        result = multiply_divide_both_sides(expression, lcd)
+        updated = result.transformed_expression
         step = make_step(
             "Multiply both sides to clear fractions",
             f"Multiply both sides by the least common denominator ({lcd}) "
